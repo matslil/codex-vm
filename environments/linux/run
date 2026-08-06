@@ -1,0 +1,12 @@
+#!/bin/sh
+set -eu
+
+operation="${1:-}"
+if [ "$operation" = "smoke" ]; then
+    python3 --version > /job/output/python-version.txt
+    exit 0
+fi
+
+echo "unsupported example operation: $operation" >&2
+exit 64
+
