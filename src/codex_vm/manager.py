@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any, BinaryIO
 
 from .models import Artifact, InputSpec, JobSpec, JobState, ValidationError
-from .runtime import ContainerRuntime
+from .runtime import EnvironmentRuntime
 from .security import receive_verified, sha256_file
 from .store import JobStore
 
@@ -19,7 +19,7 @@ def timestamp() -> str:
 
 class JobManager:
     def __init__(
-        self, store: JobStore, runtime: ContainerRuntime, maximum_input_bytes: int
+        self, store: JobStore, runtime: EnvironmentRuntime, maximum_input_bytes: int
     ) -> None:
         self.store = store
         self.runtime = runtime
@@ -107,7 +107,7 @@ class JobManager:
     def _execute(self, spec: JobSpec) -> None:
         try:
             self.runtime.prepare(spec)
-            self.store.update(spec.job_id, state=JobState.RUNNING, phase="container-running")
+            self.store.update(spec.job_id, state=JobState.RUNNING, phase="environment-running")
             result = self.runtime.run(
                 spec,
                 self.store.job_root(spec.job_id),

@@ -3,14 +3,21 @@
   "environments": {
     "topal-build-linux-x64@2026.08.0": {
       "platform": "linux/x86_64",
-      "image": "registry.lab/topal/build-linux-x64",
-      "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      "reference": "registry.lab/topal/build-linux-x64",
+      "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "deployment": {
+        "kind": "oci"
+      }
     },
     "topal-package-test-windows-x64@2026.08.0": {
       "platform": "windows/x86_64",
-      "image": "registry.lab/topal/package-test-windows-x64",
-      "digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+      "reference": "topal/package-test-windows-home-x64/2026.08.0",
+      "digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "deployment": {
+        "kind": "qcow2",
+        "image": "images/topal-package-test-windows-home-x64-2026.08.0.qcow2",
+        "sha256": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+      }
     }
   }
 }
-

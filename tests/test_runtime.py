@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import subprocess
 import tempfile
 import unittest
@@ -7,7 +8,7 @@ from pathlib import Path
 from unittest.mock import Mock, patch
 
 from codex_vm.models import JobSpec
-from codex_vm.runtime import DockerRuntime
+from codex_vm.runtime import DockerRuntime, NativeRuntime
 from tests.helpers import job_spec
 
 
@@ -24,7 +25,7 @@ class DockerRuntimeTests(unittest.TestCase):
             root = Path(directory)
             for name in ("input", "workspace", "scratch", "output"):
                 (root / name).mkdir()
-            runtime = DockerRuntime(windows_containers=False)
+            runtime = DockerRuntime()
             spec = JobSpec.from_dict(job_spec())
             result = runtime.run(spec, root, root / "stdout", root / "stderr")
         command = popen.call_args.args[0]
@@ -46,24 +47,58 @@ class DockerRuntimeTests(unittest.TestCase):
             stdin=subprocess.DEVNULL,
         )
 
-    @patch("codex_vm.runtime.subprocess.run")
+
+class NativeRuntimeTests(unittest.TestCase):
+    # LAB-REQ-ENV-002: a native worker only accepts its baked environment.
+    def test_prepare_verifies_manifest(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            manifest = Path(directory) / "environment.json"
+            manifest.write_text(
+                json.dumps(
+                    {
+                        "schema": 1,
+                        "reference": "registry.lab/topal/build-linux-x64",
+                        "digest": f"sha256:{'a' * 64}",
+                    }
+                ),
+                encoding="utf-8",
+            )
+            NativeRuntime(manifest).prepare(JobSpec.from_dict(job_spec()))
+
+    def test_prepare_rejects_wrong_environment(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            manifest = Path(directory) / "environment.json"
+            manifest.write_text(
+                json.dumps(
+                    {
+                        "schema": 1,
+                        "reference": "wrong/environment",
+                        "digest": f"sha256:{'a' * 64}",
+                    }
+                ),
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(RuntimeError, "reference"):
+                NativeRuntime(manifest).prepare(JobSpec.from_dict(job_spec()))
+
     @patch("codex_vm.runtime.subprocess.Popen", return_value=ImmediateProcess())
-    def test_windows_network_uses_nat_and_administrator(self, popen: Mock, run: Mock) -> None:
-        value = job_spec()
-        value["network"] = True
-        spec = JobSpec.from_dict(value)
+    def test_run_exposes_native_job_paths(self, popen: Mock) -> None:
+        spec = JobSpec.from_dict(job_spec())
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             for name in ("input", "workspace", "scratch", "output"):
                 (root / name).mkdir()
-            DockerRuntime(windows_containers=True).run(spec, root, root / "stdout", root / "stderr")
-        command = popen.call_args.args[0]
-        self.assertNotIn("--privileged", command)
-        self.assertIn("ContainerAdministrator", command)
-        self.assertEqual(
-            run.call_args_list[0].args[0],
-            ["docker", "network", "create", "--driver", "nat", "codex-vm-job-1"],
-        )
+            input_file = root / "input" / "release.zip"
+            input_file.write_bytes(b"release")
+            result = NativeRuntime(root / "environment.json").run(
+                spec, root, root / "stdout", root / "stderr"
+            )
+            self.assertFalse(input_file.stat().st_mode & 0o222)
+        self.assertEqual(result.exit_code, 0)
+        self.assertEqual(popen.call_args.kwargs["cwd"], root / "workspace")
+        environment = popen.call_args.kwargs["env"]
+        self.assertEqual(environment["CODEX_VM_JOB_ID"], "job-1")
+        self.assertEqual(environment["CODEX_VM_OUTPUT"], str((root / "output").resolve()))
 
 
 if __name__ == "__main__":

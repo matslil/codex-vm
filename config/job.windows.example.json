@@ -1,0 +1,33 @@
+{
+  "job_id": "topal-package-test-windows-001",
+  "operation": "package-test",
+  "environment": {
+    "reference": "topal/package-test-windows-home-x64/2026.08.0",
+    "digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+  },
+  "inputs": [
+    {
+      "name": "release",
+      "kind": "release-package",
+      "sha256": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "size": 1234
+    }
+  ],
+  "command": [
+    "powershell.exe",
+    "-NoLogo",
+    "-NonInteractive",
+    "-ExecutionPolicy",
+    "RemoteSigned",
+    "-File",
+    "C:\\environment\\run.ps1",
+    "smoke"
+  ],
+  "timeout_seconds": 3600,
+  "resources": {
+    "cpus": 8,
+    "memory_mb": 16384,
+    "disk_mb": 20480
+  },
+  "network": false
+}

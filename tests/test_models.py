@@ -15,6 +15,14 @@ class JobSpecTests(unittest.TestCase):
             f"registry.lab/topal/build-linux-x64@sha256:{'a' * 64}",
         )
 
+    def test_accepts_legacy_image_as_reference(self) -> None:
+        value = job_spec()
+        environment = value["environment"]
+        assert isinstance(environment, dict)
+        environment["image"] = environment.pop("reference")
+        spec = JobSpec.from_dict(value)
+        self.assertEqual(spec.environment.reference, "registry.lab/topal/build-linux-x64")
+
     def test_rejects_mutable_or_malformed_digest(self) -> None:
         value = job_spec()
         value["environment"]["digest"] = "latest"  # type: ignore[index]

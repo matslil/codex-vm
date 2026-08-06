@@ -66,23 +66,28 @@ class InputSpec:
 
 @dataclass(frozen=True)
 class EnvironmentSpec:
-    image: str
+    reference: str
     digest: str
 
     @classmethod
     def from_dict(cls, value: dict[str, Any]) -> EnvironmentSpec:
-        result = cls(image=str(value.get("image", "")), digest=str(value.get("digest", "")))
-        if not result.image or any(char.isspace() for char in result.image):
-            raise ValidationError("environment image is invalid")
-        if "@" in result.image:
-            raise ValidationError("environment image and digest must be separate fields")
+        reference = value.get("reference", value.get("image", ""))
+        if "reference" in value and "image" in value and value["reference"] != value["image"]:
+            raise ValidationError("environment reference and legacy image disagree")
+        result = cls(reference=str(reference), digest=str(value.get("digest", "")))
+        if not result.reference or any(char.isspace() for char in result.reference):
+            raise ValidationError("environment reference is invalid")
+        if "@" in result.reference:
+            raise ValidationError("environment reference and digest must be separate fields")
         if not SHA256_RE.fullmatch(result.digest):
             raise ValidationError("environment digest must be a lowercase sha256 digest")
         return result
 
     @property
     def pinned_image(self) -> str:
-        return f"{self.image}@{self.digest}"
+        """Return the OCI form used by container-backed environments."""
+
+        return f"{self.reference}@{self.digest}"
 
 
 @dataclass(frozen=True)

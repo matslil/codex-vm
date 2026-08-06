@@ -1,10 +1,10 @@
 # codex-vm
 
 `codex-vm` is a local, forge-independent test lab for running repository builds
-and release-package tests inside versioned containers hosted by disposable
-virtual machines. The VM is the security and cleanup boundary. Containers are
-allowed to be privileged and exist to make test environments quick to start,
-immutable, and independently versioned.
+and release-package tests in versioned environments hosted by disposable
+virtual machines. The VM is the security and cleanup boundary. Linux uses
+privileged containers; Windows Home uses copy-on-write VM layers and native
+execution. The public job configuration and worker protocol are the same.
 
 This first implementation concentrates on Intel Linux and Intel Windows. macOS,
 iOS, Android, hypervisor providers, multi-container topologies, and automated
@@ -24,28 +24,27 @@ controller -----------------------------------+
         v                                      |
 disposable Linux or Windows VM                 |
   +-- small Python worker REST API             |
-  +-- container runtime                        |
-  +-- cached environment images                |
-  +-- privileged test container                |
-        +-- read-only input                     |
-        +-- writable workspace/scratch/output   |
-        +-- optional job-local network          |
+  +-- selected versioned environment           |
+  |     Linux: privileged OCI container         |
+  |     Windows: pre-provisioned VM disk layer  |
+  +-- test process and job file areas           |
         +---------------------------------------+
 ```
 
-The container image is selected by an immutable digest. A read-only local
-registry is the intended source of truth; commonly used layers may be cached in
-the VM template. The worker pulls and verifies the selected image before it
-starts repository-controlled code.
+Every environment has a stable `reference` and immutable definition `digest`.
+The Linux worker resolves those fields as an OCI image. A Windows worker checks
+them against the manifest baked into its selected qcow2 environment layer.
+Platform-specific deployment data remains in the environment catalog rather
+than the job submitted by a user.
 
 ## What works in this baseline
 
 - Create source archives from any local Git repository without forge access.
 - Submit a versioned job description and checksum-declared inputs over HTTP.
 - Protect the API with mutual TLS when certificate arguments are supplied.
-- Pull a digest-pinned environment image.
-- Run a privileged Linux container or a `ContainerAdministrator` Windows
-  container with CPU, memory, timeout, storage, and optional network controls.
+- Pull and run a digest-pinned privileged Linux environment image.
+- Verify and run a native Windows Home environment baked into a disposable VM
+  layer, without Docker, containerd, Hyper-V, or nested virtualization.
 - Persist job state atomically and expose status through the REST API.
 - Return checksummed build products and logs.
 - Cancel or time out jobs.
@@ -114,22 +113,24 @@ codex-vm submit https://worker:8443 config/job.example.json \
   --results work/results
 ```
 
-The environment container sees these stable locations:
+The environment sees these logical areas:
 
-| Area | Linux | Windows | Access |
+| Area | Linux container | Native Windows variable | Access |
 | --- | --- | --- | --- |
-| Input | `/job/input` | `C:\job\input` | read-only |
-| Workspace | `/job/workspace` | `C:\job\workspace` | read/write |
-| Scratch | `/job/scratch` | `C:\job\scratch` | read/write |
-| Output | `/job/output` | `C:\job\output` | read/write |
+| Input | `/job/input` | `CODEX_VM_INPUT` | read-only by convention |
+| Workspace | `/job/workspace` | `CODEX_VM_WORKSPACE` | read/write |
+| Scratch | `/job/scratch` | `CODEX_VM_SCRATCH` | read/write |
+| Output | `/job/output` | `CODEX_VM_OUTPUT` | read/write |
 
 Every regular file placed in the output directory is returned as an artifact.
 
 ## Environment contract
 
-An environment image contains every dependency except the test object. Its
-entry command receives the job-specific operation arguments from `command` and
-must write results to `/job/output` or `C:\job\output`.
+An environment contains every dependency except the test object. Its command
+must write results to `/job/output` on Linux or the directory named by
+`CODEX_VM_OUTPUT` on Windows. The job schema does not expose whether an
+environment is deployed as an OCI image, qcow2 layer, or a future platform
+mechanism.
 
 Example images are under [`environments/`](environments/). They are intentionally
 minimal demonstrations; production Topal images should pin compiler, SDK,
@@ -137,11 +138,34 @@ packaging, VS Code, and test-harness versions in their own lock manifests.
 
 ## Provisioning
 
-The scripts under [`provisioning/`](provisioning/) prepare golden images. Image
-construction itself is hypervisor-specific and intentionally outside the first
-baseline. A future provider interface will clone these images, inject the
-per-VM TLS identity, discover the control address, and delete the clone after
-result collection or a watchdog timeout.
+The Linux script prepares a container-capable Ubuntu template. Windows Home is
+prepared without container support:
+
+1. Install Windows Home into a qcow2 base using a stable VM UUID and virtual
+   TPM state.
+2. Run `provisioning/windows/install-worker.ps1`. Its default `Prompt` mode
+   securely asks for a product key and passes it directly to Windows activation
+   without putting it in command arguments, configuration, or build artifacts.
+   An empty answer attempts an existing digital license.
+3. Create an environment overlay, install its dependencies, and run
+   `set-environment.ps1` with the catalog reference and definition digest.
+4. Shut down and retain that environment layer read-only.
+5. Create each disposable job disk with
+   `provisioning/windows/new-job-overlay.sh ENVIRONMENT.qcow2 JOB.qcow2`.
+
+Use `-ActivationMode DigitalLicense` to suppress the key prompt and attempt
+account/hardware-based activation, or `-ActivationMode Skip` when activation
+will be completed manually. A digital license is not an alternate key value;
+the only secret accepted by the script is a 25-character Windows product key.
+
+Activation belongs to the stable base VM, not a job clone. Reuse the same VM
+UUID, virtual TPM state, and virtual hardware definition for sequential job
+overlays. Concurrent clones require separate Windows licenses and identities.
+
+Image boot, TLS injection, address discovery, and final deletion remain behind
+the planned hypervisor-provider interface. [`config/environments.example.json`](config/environments.example.json)
+shows how both deployment kinds are hidden behind the same reference/digest
+selection.
 
 ## System engineering baseline
 
@@ -149,4 +173,3 @@ result collection or a watchdog timeout.
 requirements, architecture, interfaces, verification, validation, risk,
 change control, and traceability. Stable IDs in code and tests connect this
 implementation to that baseline.
-

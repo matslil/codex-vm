@@ -34,35 +34,48 @@ Status: proposed
 
 ### LAB-REQ-ENV-001 — Complete environment
 
-An environment image shall contain all build or test dependencies except the
-test object and explicitly declared inputs.
+An environment artifact shall contain all build or test dependencies except
+the test object and explicitly declared inputs.
 
 Verification: demonstration and inspection  
 Status: approved
 
 ### LAB-REQ-ENV-002 — Immutable selection
 
-Every job shall select its environment using a container image name and a valid
-SHA-256 image digest rather than a mutable tag alone.
+Every job shall select its environment using a platform-neutral reference and
+a valid SHA-256 environment-definition digest rather than a mutable tag alone.
 
 Verification: test  
 Status: approved
 
 ### LAB-REQ-ENV-003 — Independent evolution
 
-Environment images shall be versioned independently from golden VM images, and
-previously referenced digests shall not be overwritten.
+Environment artifacts shall be versioned independently. Linux OCI images shall
+evolve independently from Linux golden VMs. Windows environment layers shall
+retain their base-image provenance, and previously referenced digests shall not
+be overwritten.
 
 Verification: inspection  
 Status: approved
 
 ### LAB-REQ-ENV-004 — Read-only distribution
 
-The disposable VM shall obtain environment images from its inherited cache or
-a registry interface that grants no push or delete authority.
+The disposable VM shall obtain Linux images from its inherited cache or a
+registry interface that grants no push or delete authority. The Windows
+provisioner shall open its selected environment layer read-only and place all
+job writes in a disposable child overlay.
 
 Verification: inspection and demonstration  
 Status: proposed
+
+### LAB-REQ-ENV-005 — Deployment abstraction
+
+The same environment reference/digest fields and job protocol shall select an
+OCI environment on Linux and a native VM-layer environment on Windows without
+requiring the job author to configure a runtime backend.
+
+Verification: test and inspection  
+Status: approved for worker selection; provider resolution remains proposed
 
 ## Job protocol and artifacts
 
@@ -127,9 +140,9 @@ Status: approved
 
 ### LAB-REQ-JOB-002 — Container privilege
 
-Linux environments shall be permitted to run privileged, and Windows
-environments shall be permitted to run with administrator authority, because
-the disposable VM is the security boundary.
+Linux environments shall be permitted to run as privileged containers, and
+native Windows environments shall be permitted to run with administrator
+authority, because the disposable VM is the security boundary.
 
 Verification: inspection  
 Status: approved
@@ -169,16 +182,19 @@ Status: proposed
 
 ### LAB-REQ-IO-001 — Stable file areas
 
-Environment containers shall receive stable, documented input, workspace,
-scratch, and output locations with input mounted read-only.
+Environment runtimes shall receive stable, documented input, workspace,
+scratch, and output locations. Linux shall mount input read-only. Windows shall
+identify areas through stable environment variables; because administrator
+test code can override guest permissions, verified controller-side source
+objects remain the integrity reference.
 
 Verification: test and inspection  
 Status: approved
 
 ### LAB-REQ-NET-001 — Default isolation
 
-A job without an explicit network request shall run its environment container
-without a container network.
+A job without an explicit network request shall run its Linux environment
+without a container network or its Windows VM without a test-network adapter.
 
 Verification: test and inspection  
 Status: approved
@@ -219,11 +235,26 @@ Status: approved
 
 ### LAB-REQ-OPS-001 — Platform scope
 
-The initial implementation shall support Python worker execution and container
-launch construction on Intel Linux and Intel Windows.
+The initial implementation shall support a Python worker with privileged OCI
+execution on Intel Linux and native execution in layered Intel Windows Home
+VMs.
 
 Verification: test and demonstration  
 Status: approved
+
+### LAB-REQ-OPS-003 — Windows Home provisioning
+
+Windows provisioning shall not require Hyper-V or the Windows Containers
+feature. It shall securely prompt for an optional product key, support an
+existing digital license or deferred manual activation, and shall not persist
+the entered product key in repository configuration, build artifacts, or
+process arguments.
+
+For desktop IDE environments, provisioning shall support running the worker in
+a dedicated test user's interactive session rather than Session 0.
+
+Verification: inspection and demonstration  
+Status: approved by inspection; native demonstration proposed
 
 ### LAB-REQ-OPS-002 — Local operation
 

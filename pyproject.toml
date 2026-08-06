@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "codex-vm"
 version = "0.1.0"
-description = "Local disposable VM worker protocol for versioned container test environments"
+description = "Local disposable VM worker protocol for versioned test environments"
 readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"

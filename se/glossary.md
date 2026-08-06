@@ -4,7 +4,9 @@
 | --- | --- |
 | Artifact | A checksummed input or output file crossing the VM boundary. |
 | Controller | Trusted local process coordinating source export, provisioning, jobs, and evidence. |
-| Environment | Immutable container image containing tools, dependencies, and harnesses but not the test object. |
+| Environment | Immutable, versioned OCI image or VM disk layer containing tools, dependencies, and harnesses but not the test object. |
+| Environment definition digest | SHA-256 identity of reviewed environment inputs, used consistently even when the deployed artifact differs by platform. |
+| Product key | A 25-character Windows key installed during activation; distinct from a server-side digital license. |
 | Forge | Git collaboration service such as GitHub, GitLab, or Forgejo. |
 | Golden image | Versioned VM template cloned to create disposable workers. |
 | Job | One declared operation and its inputs, environment, resources, state, and results. |
@@ -13,4 +15,3 @@
 | Release package | Native distributable object, such as `.deb`, `.msi`, or `.vsix`, tested as delivered. |
 | Test object | Source archive, release package, or plugin supplied at job time rather than baked into an environment. |
 | Worker | Disposable VM and its small control service. |
-

@@ -4,13 +4,14 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from collections.abc import Sequence
 from pathlib import Path
 
 from .api import serve
 from .controller import WorkerClient, git_archive
 from .manager import JobManager
-from .runtime import DockerRuntime
+from .runtime import DockerRuntime, EnvironmentRuntime, NativeRuntime
 from .security import safe_name
 from .store import JobStore
 
@@ -27,6 +28,12 @@ def parser() -> argparse.ArgumentParser:
     worker.add_argument("--certificate", type=Path)
     worker.add_argument("--private-key", type=Path)
     worker.add_argument("--client-ca", type=Path)
+    worker.add_argument("--runtime", choices=("auto", "docker", "native"), default="auto")
+    worker.add_argument(
+        "--environment-manifest",
+        type=Path,
+        default=Path(r"C:\ProgramData\codex-vm\environment.json"),
+    )
 
     archive = commands.add_parser("archive", help="create a source archive from local Git")
     archive.add_argument("repository", type=Path)
@@ -58,7 +65,7 @@ def main(arguments: Sequence[str] | None = None) -> int:
     if args.command == "serve":
         manager = JobManager(
             JobStore(args.root),
-            DockerRuntime(),
+            _worker_runtime(args.runtime, args.environment_manifest),
             maximum_input_bytes=args.max_input_mib * 1024 * 1024,
         )
         serve(
@@ -100,6 +107,14 @@ def main(arguments: Sequence[str] | None = None) -> int:
         print(json.dumps(state, indent=2))
         return 0 if state["state"] == "succeeded" else 1
     raise AssertionError(args.command)
+
+
+def _worker_runtime(kind: str, manifest: Path) -> EnvironmentRuntime:
+    if kind == "auto":
+        kind = "native" if os.name == "nt" else "docker"
+    if kind == "native":
+        return NativeRuntime(manifest)
+    return DockerRuntime()
 
 
 if __name__ == "__main__":

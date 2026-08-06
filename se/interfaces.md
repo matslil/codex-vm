@@ -21,22 +21,26 @@ unknown objects `404`, state conflicts `409`, and unexpected worker failures
 
 ## LAB-IF-002 — Environment runtime contract
 
-The worker invokes the environment's configured entry point followed by the
-job `command` arguments. It mounts:
+The worker invokes the job `command` in the selected environment. Linux mounts
+fixed paths; native Windows supplies absolute paths through environment
+variables:
 
-| Logical area | Linux | Windows | Mode |
+| Logical area | Linux | Native Windows | Mode |
 | --- | --- | --- | --- |
-| input | `/job/input` | `C:\job\input` | read-only |
-| workspace | `/job/workspace` | `C:\job\workspace` | read/write |
-| scratch | `/job/scratch` | `C:\job\scratch` | read/write |
-| output | `/job/output` | `C:\job\output` | read/write |
+| input | `/job/input` | `CODEX_VM_INPUT` | read-only mount / verified source area |
+| workspace | `/job/workspace` | `CODEX_VM_WORKSPACE` | read/write |
+| scratch | `/job/scratch` | `CODEX_VM_SCRATCH` | read/write |
+| output | `/job/output` | `CODEX_VM_OUTPUT` | read/write |
 
 Every regular, non-symlink file at the output root becomes a result artifact.
 
-## LAB-IF-003 — Registry
+## LAB-IF-003 — Environment artifact store
 
-The runtime uses the OCI/Docker Registry pull interface. A job supplies a
-repository name and SHA-256 manifest digest. Authorization, when needed, is
+The catalog gives every platform a common `reference` and definition `digest`.
+Linux deployment uses the OCI/Docker Registry pull interface and combines those
+fields as `reference@digest`. Windows deployment maps them to a qcow2 artifact
+with its own file SHA-256, uses that file as a read-only backing image, and
+creates a per-job child overlay. Registry authorization, when needed, is
 limited to pull and expires before or shortly after environment preparation.
 
 ## LAB-IF-004 — Provisioner
@@ -44,13 +48,14 @@ limited to pull and expires before or shortly after environment preparation.
 The planned controller/provider boundary is:
 
 ```python
-create(base_image, job_id, identity, resources, network_policy) -> Worker
+create(environment, job_id, identity, resources, network_policy) -> Worker
 wait_ready(worker, deadline) -> Endpoint
 destroy(worker) -> None
 ```
 
 The provider implementation owns hypervisor-specific commands and must make
-`destroy` idempotent.
+`destroy` idempotent. It resolves the catalog's platform-specific `deployment`
+object; callers do not branch on `oci`, `qcow2`, or future deployment kinds.
 
 ## LAB-IF-005 — Source archive
 
@@ -58,4 +63,3 @@ The baseline source object is a gzip-compressed Git archive of one commit with
 a manifest containing commit ID, tree ID, byte length, and SHA-256 digest. It
 does not contain `.git`, uncommitted files, submodule contents, or implicitly
 downloaded Git LFS objects.
-

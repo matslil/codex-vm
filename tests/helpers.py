@@ -13,7 +13,7 @@ def job_spec(value: bytes = b"source", job_id: str = "job-1") -> dict[str, objec
         "job_id": job_id,
         "operation": "build",
         "environment": {
-            "image": "registry.lab/topal/build-linux-x64",
+            "reference": "registry.lab/topal/build-linux-x64",
             "digest": f"sha256:{'a' * 64}",
         },
         "inputs": [
