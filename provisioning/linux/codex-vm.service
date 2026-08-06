@@ -1,0 +1,16 @@
+[Unit]
+Description=Disposable Codex VM worker API
+After=network-online.target docker.service
+Wants=network-online.target
+Requires=docker.service
+
+[Service]
+Type=simple
+ExecStart=/opt/codex-vm/bin/codex-vm serve --root /var/lib/codex-vm --host 0.0.0.0 --port 8443 --certificate /run/codex-vm/worker.crt --private-key /run/codex-vm/worker.key --client-ca /run/codex-vm/controller-ca.crt
+Restart=on-failure
+RestartSec=2
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target
+

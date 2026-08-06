@@ -1,0 +1,37 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "codex-vm"
+version = "0.1.0"
+description = "Local disposable VM worker protocol for versioned container test environments"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+authors = [{ name = "codex-vm contributors" }]
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["mypy>=1.17", "ruff>=0.12"]
+
+[project.scripts]
+codex-vm = "codex_vm.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+codex_vm = ["py.typed"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+packages = ["codex_vm"]

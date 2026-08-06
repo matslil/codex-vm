@@ -1,0 +1,28 @@
+{
+  "job_id": "topal-build-001",
+  "operation": "build-release",
+  "environment": {
+    "image": "registry.lab/topal/build-linux-x64",
+    "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  "inputs": [
+    {
+      "name": "source",
+      "kind": "git-archive",
+      "sha256": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "size": 1234
+    }
+  ],
+  "command": [
+    "/environment/run",
+    "build-release"
+  ],
+  "timeout_seconds": 3600,
+  "resources": {
+    "cpus": 8,
+    "memory_mb": 16384,
+    "disk_mb": 20480
+  },
+  "network": false
+}
+

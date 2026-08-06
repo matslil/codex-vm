@@ -1,0 +1,16 @@
+{
+  "schema": 1,
+  "environments": {
+    "topal-build-linux-x64@2026.08.0": {
+      "platform": "linux/x86_64",
+      "image": "registry.lab/topal/build-linux-x64",
+      "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    "topal-package-test-windows-x64@2026.08.0": {
+      "platform": "windows/x86_64",
+      "image": "registry.lab/topal/package-test-windows-x64",
+      "digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    }
+  }
+}
+
