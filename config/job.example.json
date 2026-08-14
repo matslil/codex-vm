@@ -2,7 +2,7 @@
   "job_id": "topal-build-001",
   "operation": "build-release",
   "environment": {
-    "image": "registry.lab/topal/build-linux-x64",
+    "reference": "registry.lab/topal/build-linux-x64",
     "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
   },
   "inputs": [
@@ -25,4 +25,3 @@
   },
   "network": false
 }
-

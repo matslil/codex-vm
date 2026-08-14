@@ -30,16 +30,16 @@ retired contrary to policy.
 Success criteria:
 
 - no mutable `latest` reference participates;
-- the resolved image digest equals historical evidence;
+- the resolved environment definition and artifact digests equal historical evidence;
 - result differences are attributable to recorded external assumptions.
 
 Stakeholder needs: `LAB-NEED-002`.
 
 ## LAB-VAL-003 — Upgrade compiler environment
 
-The environment maintainer publishes a new compiler image without modifying the
-golden VM or deleting the previous image. The same source is tested against both
-digests and produces independently retained evidence.
+The environment maintainer publishes a new compiler OCI image or Windows VM
+layer without deleting the previous artifact. The same source is tested against
+both digests and produces independently retained evidence.
 
 Stakeholder needs: `LAB-NEED-002`, `LAB-NEED-005`.
 
@@ -53,9 +53,9 @@ Stakeholder needs: `LAB-NEED-006`.
 
 ## LAB-VAL-005 — Compromised privileged test
 
-A deliberately hostile privileged container takes administrator control of its
-VM. It cannot reach hypervisor management, another job, forge credentials, or
-the physical LAN. The host watchdog deletes the VM after its deadline.
+A deliberately hostile privileged Linux container or Windows administrator
+process takes control of its VM. It cannot reach hypervisor management, another
+job, forge credentials, or the physical LAN. The host watchdog deletes the VM
+after its deadline.
 
 Stakeholder needs: `LAB-NEED-004`.
-

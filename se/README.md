@@ -27,9 +27,10 @@ or reused for unrelated meaning.
 ## Baseline status
 
 This first baseline is **proposed**. It covers Intel Linux and Intel Windows,
-one active job per disposable VM, one primary environment container per job,
-local Git source export, digest-pinned environment selection, and HTTPS worker
-communication. The human maintainer approves this baseline by merging it.
+one active job per disposable VM, one primary environment runtime per job,
+local Git source export, digest-pinned environment selection, and authenticated
+host-local worker communication. The human maintainer approves this baseline
+by merging it.
 
 ## Scope boundaries
 
@@ -37,18 +38,17 @@ Included:
 
 - forge-independent local source export;
 - controller-to-worker protocol;
-- disposable VM and versioned container responsibilities;
+- disposable VM and versioned environment responsibilities;
 - build and release-package test artifact exchange;
-- job-scoped files and a basic container network;
-- Linux privileged and Windows administrator container execution;
+- job-scoped files and a basic test network;
+- Linux privileged-container and Windows Home native administrator execution;
 - verification and operational evidence.
 
 Deferred:
 
 - macOS, iOS, Android, and ARM64 workers;
 - concrete libvirt, Hyper-V, Proxmox, and cloud provisioner adapters;
-- automatic PKI issuance;
-- multiple primary test containers and cross-host test networks;
+- automatic PKI issuance for optional non-local TLS transports;
+- multiple primary test instances and cross-host test networks;
 - Git submodule and Git LFS source assembly;
 - VS Code automation and Topal-specific environment definitions.
-

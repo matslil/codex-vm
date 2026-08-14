@@ -8,8 +8,8 @@ from pathlib import Path
 from typing import Any, BinaryIO
 
 from .models import Artifact, InputSpec, JobSpec, JobState, ValidationError
-from .runtime import ContainerRuntime
-from .security import receive_verified, sha256_file
+from .runtime import EnvironmentRuntime
+from .security import receive_verified, safe_name, sha256_file
 from .store import JobStore
 
 
@@ -19,17 +19,24 @@ def timestamp() -> str:
 
 class JobManager:
     def __init__(
-        self, store: JobStore, runtime: ContainerRuntime, maximum_input_bytes: int
+        self,
+        store: JobStore,
+        runtime: EnvironmentRuntime,
+        maximum_input_bytes: int,
+        maximum_output_bytes: int = 4 * 1024 * 1024 * 1024,
     ) -> None:
         self.store = store
         self.runtime = runtime
         self.maximum_input_bytes = maximum_input_bytes
+        self.maximum_output_bytes = maximum_output_bytes
         self._specs: dict[str, JobSpec] = {}
         self._threads: dict[str, threading.Thread] = {}
         self._lock = threading.RLock()
 
     def create(self, spec: JobSpec) -> dict[str, Any]:
         with self._lock:
+            if sum(item.size for item in spec.inputs) > self.maximum_input_bytes:
+                raise ValidationError("aggregate job input exceeds worker size limit")
             active = [
                 job_id
                 for job_id in self._specs
@@ -107,7 +114,7 @@ class JobManager:
     def _execute(self, spec: JobSpec) -> None:
         try:
             self.runtime.prepare(spec)
-            self.store.update(spec.job_id, state=JobState.RUNNING, phase="container-running")
+            self.store.update(spec.job_id, state=JobState.RUNNING, phase="environment-running")
             result = self.runtime.run(
                 spec,
                 self.store.job_root(spec.job_id),
@@ -153,14 +160,20 @@ class JobManager:
                 target = output / log.name
                 target.write_bytes(log.read_bytes())
         artifacts: list[Artifact] = []
+        aggregate_size = 0
         for path in sorted(output.iterdir()):
             if path.is_file() and not path.is_symlink():
+                filename = safe_name(path.name)
+                size = path.stat().st_size
+                aggregate_size += size
+                if aggregate_size > self.maximum_output_bytes:
+                    raise ValidationError("aggregate job output exceeds worker size limit")
                 artifacts.append(
                     Artifact(
-                        name=path.name,
+                        name=filename,
                         kind="log" if path.suffix == ".log" else "result",
-                        filename=path.name,
-                        size=path.stat().st_size,
+                        filename=filename,
+                        size=size,
                         sha256=sha256_file(path),
                     )
                 )

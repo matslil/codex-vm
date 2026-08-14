@@ -11,6 +11,7 @@ import time
 from pathlib import Path
 from typing import Any
 from urllib.error import HTTPError
+from urllib.parse import urlsplit
 from urllib.request import Request, urlopen
 
 from .models import JobState
@@ -25,12 +26,23 @@ class WorkerClient:
         ca: Path | None = None,
         certificate: Path | None = None,
         private_key: Path | None = None,
+        bearer_token: bytes | None = None,
         maximum_metadata_bytes: int = 1024 * 1024,
         maximum_artifact_bytes: int = 4 * 1024 * 1024 * 1024,
     ) -> None:
         self.base_url = base_url.rstrip("/")
         self.maximum_metadata_bytes = maximum_metadata_bytes
         self.maximum_artifact_bytes = maximum_artifact_bytes
+        parsed_url = urlsplit(self.base_url)
+        if parsed_url.scheme not in {"http", "https"}:
+            raise ValueError("worker URL must use HTTP or HTTPS")
+        if parsed_url.scheme == "http" and parsed_url.hostname not in {
+            "127.0.0.1",
+            "::1",
+            "localhost",
+        }:
+            raise ValueError("plain HTTP worker URLs must use a loopback host")
+        self.bearer_token = bearer_token
         self.context = ssl.create_default_context(cafile=str(ca) if ca else None)
         if certificate is not None:
             self.context.load_cert_chain(certificate, private_key)
@@ -60,7 +72,7 @@ class WorkerClient:
         expected_url = f"/v1/jobs/{job_id}/artifacts/{artifact['name']}"
         if artifact["url"] != expected_url:
             raise ValueError(f"artifact URL is outside the expected job route: {artifact['name']}")
-        request = Request(f"{self.base_url}{expected_url}", method="GET")
+        request = Request(f"{self.base_url}{expected_url}", method="GET", headers=self._headers())
         try:
             with urlopen(request, context=self.context, timeout=60) as response:  # noqa: S310
                 receive_verified(
@@ -93,11 +105,13 @@ class WorkerClient:
         *,
         content_type: str = "application/octet-stream",
     ) -> bytes:
+        headers = self._headers()
+        headers["Content-Type"] = content_type
         request = Request(
             f"{self.base_url}{path}",
             data=body,
             method=method,
-            headers={"Content-Type": content_type},
+            headers=headers,
         )
         try:
             with urlopen(request, context=self.context, timeout=60) as response:  # noqa: S310
@@ -114,6 +128,11 @@ class WorkerClient:
             finally:
                 error.close()
             raise RuntimeError(f"worker returned HTTP {error.code}: {detail}") from error
+
+    def _headers(self) -> dict[str, str]:
+        if self.bearer_token is None:
+            return {}
+        return {"Authorization": f"Bearer {self.bearer_token.decode('ascii')}"}
 
 
 def git_archive(

@@ -21,7 +21,7 @@ reproducible.
 
 The operator needs physical hosts, credentials, networks, and old job state to
 remain protected when repository-controlled test code is privileged inside its
-container.
+environment.
 
 ## LAB-STK-005 — Developer and reviewer
 
@@ -38,4 +38,3 @@ environment digest, release artifact, logs, results, and verification claims.
 | `LAB-NEED-004` | Treat the disposable VM as the security and cleanup boundary. | `LAB-STK-004` |
 | `LAB-NEED-005` | Start test environments quickly without reinstalling dependencies. | `LAB-STK-002`, `LAB-STK-003` |
 | `LAB-NEED-006` | Exercise file and network communication between test processes. | `LAB-STK-001`, `LAB-STK-005` |
-
