@@ -26,6 +26,12 @@ persistent software TPM 2.0 state, and then starts QEMU/KVM with Secure Boot.
 It uses SATA storage and an emulated Intel network adapter, so Windows Setup
 does not need a separate VirtIO driver ISO.
 
+QEMU shows two DVD devices during base construction. The first is the bootable
+Windows installation ISO. The second is the generated `CODEXVM_PAYLOAD` ISO
+containing the answer file, bootstrap scripts, worker source, and private Python
+runtime; it is deliberately separate so the original Windows media is not
+modified.
+
 Windows Setup selects `Windows 11 Home`, partitions the disk, creates a random
 temporary `codex-build` administrator, and logs it in once. A visible
 PowerShell window then asks for the product key. The key is entered inside the

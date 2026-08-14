@@ -141,7 +141,8 @@ class WindowsProvisioningTests(unittest.TestCase):
             code = root / "OVMF_CODE.fd"
             variables = root / "OVMF_VARS.fd"
             installer = root / "windows.iso"
-            for path in (disk, code, variables, installer):
+            payload = root / "provisioning.iso"
+            for path in (disk, code, variables, installer, payload):
                 path.write_bytes(path.name.encode())
             (root / "vm.conf").write_text(
                 "VM_UUID=11111111-2222-3333-4444-555555555555\n"
@@ -170,6 +171,8 @@ class WindowsProvisioningTests(unittest.TestCase):
                     str(root),
                     "--cdrom",
                     str(installer),
+                    "--cdrom",
+                    str(payload),
                     "--boot-cdrom",
                     "--display",
                     "none",
@@ -188,7 +191,11 @@ class WindowsProvisioningTests(unittest.TestCase):
             self.assertIn("e1000e,netdev=net0,mac=52:54:00:12:34:56", command)
             self.assertIn("-device tpm-crb,tpmdev=tpm0", command)
             self.assertIn("property=secure,value=on", command)
-            self.assertIn("-boot menu=on,once=d", command)
+            self.assertIn("ide-hd,drive=osdisk,bus=sata.0,bootindex=2", command)
+            self.assertIn("ide-cd,drive=cdrom1,bus=sata.1,bootindex=1", command)
+            self.assertIn("ide-cd,drive=cdrom2,bus=sata.2,bootindex=3", command)
+            self.assertIn("-boot menu=on", command)
+            self.assertNotIn("once=d", command)
             self.assertIn("user,id=net0,restrict=on", command)
             self.assertIn("hostfwd=tcp:127.0.0.1:18443-:8443", command)
 

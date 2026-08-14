@@ -116,6 +116,12 @@ else
     fi
 fi
 
+if $boot_cdrom; then
+    disk_bootindex=2
+else
+    disk_bootindex=1
+fi
+
 arguments=(
     -name codex-windows-home
     -machine "q35,smm=on,accel=$accel"
@@ -128,7 +134,7 @@ arguments=(
     -drive "if=pflash,format=raw,unit=1,file=$ovmf_vars"
     -device ich9-ahci,id=sata
     -drive "if=none,id=osdisk,format=qcow2,cache=writeback,discard=unmap,file=$disk"
-    -device ide-hd,drive=osdisk,bus=sata.0,bootindex=1
+    -device "ide-hd,drive=osdisk,bus=sata.0,bootindex=$disk_bootindex"
     -chardev "socket,id=chrtpm,path=$socket"
     -tpmdev emulator,id=tpm0,chardev=chrtpm
     -device tpm-crb,tpmdev=tpm0
@@ -143,16 +149,17 @@ arguments=(
 index=1
 for iso in "${cdroms[@]}"; do
     iso=$(realpath "$iso")
+    if $boot_cdrom && (( index == 1 )); then
+        cdrom_bootindex=1
+    else
+        cdrom_bootindex=$((index + 1))
+    fi
     arguments+=(
         -drive "if=none,id=cdrom$index,format=raw,media=cdrom,readonly=on,file=$iso"
-        -device "ide-cd,drive=cdrom$index,bus=sata.$index,bootindex=$((index + 1))"
+        -device "ide-cd,drive=cdrom$index,bus=sata.$index,bootindex=$cdrom_bootindex"
     )
     index=$((index + 1))
 done
-if $boot_cdrom; then
-    arguments+=(-boot menu=on,once=d)
-else
-    arguments+=(-boot menu=on)
-fi
+arguments+=(-boot menu=on)
 
 "$qemu" "${arguments[@]}"
