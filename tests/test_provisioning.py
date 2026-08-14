@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import struct
 import subprocess
 import sys
 import tempfile
@@ -11,6 +12,38 @@ from pathlib import Path
 from codex_vm.models import JobSpec
 
 REPOSITORY = Path(__file__).resolve().parents[1]
+SECTOR_SIZE = 2048
+
+
+def write_bootable_uefi_iso(path: Path) -> None:
+    image = bytearray(21 * SECTOR_SIZE)
+    primary = memoryview(image)[16 * SECTOR_SIZE : 17 * SECTOR_SIZE]
+    primary[0] = 1
+    primary[1:6] = b"CD001"
+    primary[6] = 1
+
+    boot_record = memoryview(image)[17 * SECTOR_SIZE : 18 * SECTOR_SIZE]
+    boot_record[0] = 0
+    boot_record[1:6] = b"CD001"
+    boot_record[6] = 1
+    boot_record[7:30] = b"EL TORITO SPECIFICATION"
+    boot_record[71:75] = (20).to_bytes(4, "little")
+
+    terminator = memoryview(image)[18 * SECTOR_SIZE : 19 * SECTOR_SIZE]
+    terminator[0] = 255
+    terminator[1:6] = b"CD001"
+    terminator[6] = 1
+
+    catalog = memoryview(image)[20 * SECTOR_SIZE : 21 * SECTOR_SIZE]
+    catalog[0] = 1
+    catalog[30:32] = b"\x55\xaa"
+    checksum = (-sum(struct.unpack("<16H", catalog[:32]))) & 0xFFFF
+    catalog[28:30] = checksum.to_bytes(2, "little")
+    catalog[64] = 0x91
+    catalog[65] = 0xEF
+    catalog[66:68] = (1).to_bytes(2, "little")
+    catalog[96] = 0x88
+    path.write_bytes(image)
 
 
 class WindowsProvisioningTests(unittest.TestCase):
@@ -70,7 +103,8 @@ class WindowsProvisioningTests(unittest.TestCase):
             python_runtime = root / "python.zip"
             ovmf_code = root / "OVMF_CODE.fd"
             ovmf_vars = root / "OVMF_VARS.fd"
-            for path in (windows_iso, python_runtime, ovmf_code, ovmf_vars):
+            write_bootable_uefi_iso(windows_iso)
+            for path in (python_runtime, ovmf_code, ovmf_vars):
                 path.write_bytes(path.name.encode())
             output = root / "vm"
             environment = os.environ.copy()
@@ -121,6 +155,44 @@ class WindowsProvisioningTests(unittest.TestCase):
             configuration = (output / "vm.conf").read_text(encoding="utf-8")
             self.assertIn("VM_ACCEL=tcg", configuration)
             self.assertNotIn("product", configuration.lower())
+
+    def test_base_builder_rejects_an_html_download_as_windows_media(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            invalid_media = root / "windows.iso"
+            invalid_media.write_text("<!doctype html><title>Download Windows</title>")
+
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(REPOSITORY / "provisioning/windows/validate-install-media.py"),
+                    str(invalid_media),
+                ],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+
+            self.assertEqual(result.returncode, 65)
+            self.assertIn("invalid Windows installation media", result.stderr)
+
+    def test_windows_media_validator_accepts_a_bootable_uefi_iso(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            media = Path(directory) / "windows.iso"
+            write_bootable_uefi_iso(media)
+
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(REPOSITORY / "provisioning/windows/validate-install-media.py"),
+                    str(media),
+                ],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_vm_launcher_uses_stable_identity_and_tpm(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

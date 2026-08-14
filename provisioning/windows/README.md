@@ -19,7 +19,11 @@ provisioning/windows/build-base.sh \
 ```
 
 `--iso` can instead name an existing local ISO. Add `--iso-sha256 HEX` when a
-trusted checksum is available. The builder downloads a checksum-pinned Python
+trusted checksum is available. Some order-confirmation links open a web page
+rather than returning the ISO itself; in that case, download the ISO in a
+browser and pass its local path. Before creating or booting the VM, the builder
+verifies that the supplied file is ISO 9660 media with a valid El Torito catalog
+and a bootable UEFI entry. The builder downloads a checksum-pinned Python
 embeddable ZIP and expands it as the worker's private runtime,
 creates a qcow2 disk, unique UUID and MAC, writable OVMF variable store, and
 persistent software TPM 2.0 state, and then starts QEMU/KVM with Secure Boot.

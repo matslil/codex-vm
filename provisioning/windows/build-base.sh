@@ -163,6 +163,10 @@ obtain() {
 
 windows_iso=$(obtain "$iso_source" "$downloads/windows.iso" "$iso_sha256")
 python_runtime=$(obtain "$python_source" "$downloads/python-3.13.14-embed-amd64.zip" "$python_sha256")
+if ! "$host_python" "$script_dir/validate-install-media.py" "$windows_iso"; then
+    echo "Use a direct ISO download or a local ISO file; web/download pages are not installation media." >&2
+    exit 65
+fi
 windows_iso_digest=$(verify_digest "$windows_iso" "$iso_sha256")
 python_digest=$(verify_digest "$python_runtime" "$python_sha256")
 if [[ -z "$iso_sha256" ]]; then
