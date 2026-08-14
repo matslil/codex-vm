@@ -256,6 +256,12 @@ from an operator-supplied HTTPS URL, install the selected Home edition using
 QEMU, Secure Boot-capable OVMF, and a persistent software TPM 2.0 identity, and
 shall place the product-key prompt only inside the guest session.
 
+Base construction shall not require a timed operator keypress to enter Windows
+Setup. The builder shall preserve the supplied ISO, derive and hash a no-prompt
+UEFI installer from boot images contained in that ISO, and remove the installer
+DVD from the VM on Setup's first reset so subsequent boots select the system
+disk.
+
 For desktop IDE environments, provisioning shall support running the worker in
 a dedicated test user's interactive session rather than Session 0.
 

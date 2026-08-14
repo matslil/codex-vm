@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+
 usage() {
     cat <<'EOF'
 Usage: run-vm.sh --vm-dir DIR [--disk DISK] [--cdrom ISO ...]
@@ -37,6 +39,10 @@ done
 
 if $internet && [[ -n "$worker_port" ]]; then
     echo "--internet and --worker-port cannot be combined" >&2
+    exit 64
+fi
+if $boot_cdrom && (( ${#cdroms[@]} == 0 )); then
+    echo "--boot-cdrom requires at least one --cdrom" >&2
     exit 64
 fi
 if [[ -n "$worker_port" ]]; then
@@ -86,21 +92,31 @@ qemu=${QEMU_SYSTEM_X86_64:-qemu-system-x86_64}
 swtpm=${SWTPM:-swtpm}
 command -v "$qemu" >/dev/null || { echo "missing command: $qemu" >&2; exit 69; }
 command -v "$swtpm" >/dev/null || { echo "missing command: $swtpm" >&2; exit 69; }
+host_python=${HOST_PYTHON:-python3}
+if $boot_cdrom; then
+    command -v "$host_python" >/dev/null || { echo "missing command: $host_python" >&2; exit 69; }
+fi
 
 tpm_dir="$vm_dir/tpm"
 socket="$vm_dir/swtpm.sock"
 pid_file="$vm_dir/swtpm.pid"
+qmp_socket="$vm_dir/qmp.sock"
+qemu_pid=""
 mkdir -p "$tpm_dir"
-rm -f "$socket" "$pid_file"
+rm -f "$socket" "$pid_file" "$qmp_socket"
 
 cleanup() {
+    if [[ "$qemu_pid" =~ ^[0-9]+$ ]] && kill -0 "$qemu_pid" 2>/dev/null; then
+        kill "$qemu_pid" 2>/dev/null || true
+        wait "$qemu_pid" 2>/dev/null || true
+    fi
     if [[ -f "$pid_file" ]]; then
         read -r pid < "$pid_file" || true
         if [[ "${pid:-}" =~ ^[0-9]+$ ]]; then
             kill "$pid" 2>/dev/null || true
         fi
     fi
-    rm -f "$socket" "$pid_file"
+    rm -f "$socket" "$pid_file" "$qmp_socket"
 }
 trap cleanup EXIT INT TERM
 
@@ -156,10 +172,31 @@ for iso in "${cdroms[@]}"; do
     fi
     arguments+=(
         -drive "if=none,id=cdrom$index,format=raw,media=cdrom,readonly=on,file=$iso"
-        -device "ide-cd,drive=cdrom$index,bus=sata.$index,bootindex=$cdrom_bootindex"
     )
+    if $boot_cdrom && (( index == 1 )); then
+        arguments+=(-device "ide-cd,id=windows-installer,drive=cdrom$index,bus=sata.$index,bootindex=$cdrom_bootindex")
+    else
+        arguments+=(-device "ide-cd,drive=cdrom$index,bus=sata.$index,bootindex=$cdrom_bootindex")
+    fi
     index=$((index + 1))
 done
 arguments+=(-boot menu=on)
 
-"$qemu" "${arguments[@]}"
+if ! $boot_cdrom; then
+    "$qemu" "${arguments[@]}"
+    exit $?
+fi
+
+arguments+=(-qmp "unix:$qmp_socket,server=on,wait=off" -S)
+"$qemu" "${arguments[@]}" &
+qemu_pid=$!
+manager_status=0
+"$host_python" "$script_dir/manage-install-boot.py" "$qmp_socket" || manager_status=$?
+if (( manager_status != 0 )); then
+    kill "$qemu_pid" 2>/dev/null || true
+fi
+qemu_status=0
+wait "$qemu_pid" || qemu_status=$?
+qemu_pid=""
+(( manager_status == 0 )) || exit "$manager_status"
+exit "$qemu_status"

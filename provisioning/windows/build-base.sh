@@ -90,6 +90,7 @@ done
 
 qemu_img=${QEMU_IMG:-qemu-img}
 iso_builder=${ISO_BUILDER:-genisoimage}
+seven_zip=${SEVEN_ZIP:-7z}
 host_python=${HOST_PYTHON:-}
 if [[ -z "$host_python" ]]; then
     if [[ -x "$repository/.venv/bin/python" ]]; then
@@ -98,7 +99,7 @@ if [[ -z "$host_python" ]]; then
         host_python=python3
     fi
 fi
-for command_name in "$qemu_img" "$iso_builder" "$host_python" curl openssl sha256sum realpath; do
+for command_name in "$qemu_img" "$iso_builder" "$seven_zip" "$host_python" curl openssl sha256sum realpath cp; do
     command -v "$command_name" >/dev/null || { echo "missing command: $command_name" >&2; exit 69; }
 done
 
@@ -123,7 +124,12 @@ chmod 700 "$output"
 downloads="$output/downloads"
 mkdir -p "$downloads"
 disk="$output/windows-home-base.qcow2"
+boot_iso="$output/windows-installer-noprompt.iso"
 [[ ! -e "$disk" ]] || { echo "refusing to overwrite existing base disk: $disk" >&2; exit 73; }
+[[ ! -e "$boot_iso" && ! -L "$boot_iso" ]] || {
+    echo "refusing to overwrite existing installer media: $boot_iso" >&2
+    exit 73
+}
 
 staging=$(mktemp -d)
 cleanup() {
@@ -167,6 +173,9 @@ if ! "$host_python" "$script_dir/validate-install-media.py" "$windows_iso"; then
     echo "Use a direct ISO download or a local ISO file; web/download pages are not installation media." >&2
     exit 65
 fi
+echo "Creating derived no-prompt Windows installer media..." >&2
+"$host_python" "$script_dir/make-noprompt-iso.py" "$windows_iso" "$boot_iso" "$seven_zip"
+boot_iso_digest=$(verify_digest "$boot_iso" "")
 windows_iso_digest=$(verify_digest "$windows_iso" "$iso_sha256")
 python_digest=$(verify_digest "$python_runtime" "$python_sha256")
 if [[ -z "$iso_sha256" ]]; then
@@ -266,7 +275,7 @@ write_manifest() {
     local status=$1
     "$host_python" - "$output/manifest.json" "$status" "$edition" "$vm_uuid" \
         "$vm_mac" "$windows_iso" "$windows_iso_digest" "$python_digest" \
-        "$source_digest" "$payload_digest" <<'PY'
+        "$source_digest" "$payload_digest" "$boot_iso_digest" <<'PY'
 import datetime
 import json
 import pathlib
@@ -283,6 +292,7 @@ import sys
     python_sha256,
     worker_source_sha256,
     payload_sha256,
+    boot_iso_sha256,
 ) = sys.argv[1:]
 value = {
     "schema": 1,
@@ -296,6 +306,7 @@ value = {
     "python_runtime_sha256": f"sha256:{python_sha256}",
     "worker_source_sha256": f"sha256:{worker_source_sha256}",
     "provisioning_iso_sha256": f"sha256:{payload_sha256}",
+    "derived_installer_iso_sha256": f"sha256:{boot_iso_sha256}",
 }
 pathlib.Path(destination).write_text(json.dumps(value, indent=2) + "\n", encoding="utf-8")
 PY
@@ -310,8 +321,8 @@ fi
 
 echo "Starting Windows Setup. Keep the VM window open."
 echo "After installation, Windows will open a PowerShell window asking for the product key."
-"$script_dir/run-vm.sh" --vm-dir "$output" --disk "$disk" \
-    --cdrom "$windows_iso" --cdrom "$payload_iso" --boot-cdrom --display "$display" \
+HOST_PYTHON="$host_python" "$script_dir/run-vm.sh" --vm-dir "$output" --disk "$disk" \
+    --cdrom "$boot_iso" --cdrom "$payload_iso" --boot-cdrom --display "$display" \
     --internet
 
 printf 'Did the guest report successful provisioning before it shut down? [y/N] '
@@ -322,7 +333,7 @@ if [[ "$confirmed" != y && "$confirmed" != Y ]]; then
 fi
 
 chmod 444 "$disk"
-rm -f "$payload_iso"
+rm -f "$payload_iso" "$boot_iso"
 write_manifest complete
 echo "Windows Home base completed: $disk"
 echo "Stable VM identity: $output/vm.conf"

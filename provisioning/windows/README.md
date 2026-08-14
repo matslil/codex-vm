@@ -23,18 +23,25 @@ trusted checksum is available. Some order-confirmation links open a web page
 rather than returning the ISO itself; in that case, download the ISO in a
 browser and pass its local path. Before creating or booting the VM, the builder
 verifies that the supplied file is ISO 9660 media with a valid El Torito catalog
-and a bootable UEFI entry. The builder downloads a checksum-pinned Python
+and a bootable UEFI entry. It preserves that source image, copies it to a
+temporary derived installer, and replaces only the referenced `efisys.bin`
+extent with Microsoft's same-sized `efisys_noprompt.bin`. Both media hashes are
+recorded. The builder downloads a checksum-pinned Python
 embeddable ZIP and expands it as the worker's private runtime,
 creates a qcow2 disk, unique UUID and MAC, writable OVMF variable store, and
 persistent software TPM 2.0 state, and then starts QEMU/KVM with Secure Boot.
 It uses SATA storage and an emulated Intel network adapter, so Windows Setup
 does not need a separate VirtIO driver ISO.
 
-QEMU shows two DVD devices during base construction. The first is the bootable
-Windows installation ISO. The second is the generated `CODEXVM_PAYLOAD` ISO
+QEMU shows two DVD devices during base construction. The first is the derived
+no-prompt Windows installation ISO. The second is the generated
+`CODEXVM_PAYLOAD` ISO
 containing the answer file, bootstrap scripts, worker source, and private Python
 runtime; it is deliberately separate so the original Windows media is not
-modified.
+modified. QEMU starts paused while a private QMP connection is established.
+The builder then starts the VM and ejects the installer DVD on Windows Setup's
+first reset, leaving the payload DVD attached and making the new system disk the
+next bootable device.
 
 Windows Setup selects `Windows 11 Home`, partitions the disk, creates a random
 temporary `codex-build` administrator, and logs it in once. A visible
@@ -55,7 +62,7 @@ provisioning/windows/build-base.sh \
 Use `--prepare-only` to download and construct all artifacts without booting a
 VM. `build-base.sh --help` lists memory, CPU, disk, display, accelerator, OVMF,
 and checksum options. Required host commands are QEMU (`qemu-system-x86_64` and
-`qemu-img`), `swtpm`, `genisoimage`, `curl`, `openssl`, and Python 3. KVM is
+`qemu-img`), `swtpm`, `genisoimage`, `7z`, `curl`, `openssl`, and Python 3. KVM is
 strongly recommended; the TCG fallback is much slower.
 
 The completed directory contains:
