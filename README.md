@@ -141,16 +141,19 @@ packaging, VS Code, and test-harness versions in their own lock manifests.
 The Linux script prepares a container-capable Ubuntu template. Windows Home is
 prepared without container support:
 
-1. Install Windows Home into a qcow2 base using a stable VM UUID and virtual
-   TPM state.
-2. Run `provisioning/windows/install-worker.ps1`. Its default `Prompt` mode
+1. Run `provisioning/windows/build-base.sh --iso SOURCE`. It downloads HTTPS
+   sources when needed, creates a QEMU/OVMF/swtpm VM, installs Windows Home
+   unattended, and opens a visible in-guest activation prompt.
+2. The guest bootstrap invokes `install-worker.ps1`. Its default `Prompt` mode
    securely asks for a product key and passes it directly to Windows activation
-   without putting it in command arguments, configuration, or build artifacts.
-   An empty answer attempts an existing digital license.
-3. Create an environment overlay, install its dependencies, and run
+   without putting it in host arguments, answer files, configuration, or build
+   artifacts. An empty answer attempts an existing digital license.
+3. After the VM shuts down and the operator confirms success, the builder seals
+   the base disk while retaining its stable UUID, OVMF variables, and TPM state.
+4. Create an environment overlay, install its dependencies, and run
    `set-environment.ps1` with the catalog reference and definition digest.
-4. Shut down and retain that environment layer read-only.
-5. Create each disposable job disk with
+5. Shut down and retain that environment layer read-only.
+6. Create each disposable job disk with
    `provisioning/windows/new-job-overlay.sh ENVIRONMENT.qcow2 JOB.qcow2`.
 
 Use `-ActivationMode DigitalLicense` to suppress the key prompt and attempt

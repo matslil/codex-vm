@@ -43,6 +43,15 @@ environment layers are immutable and selected by definition digest. Updating
 one environment does not invalidate older environments. Windows layers record
 their base provenance so an environment can be rebuilt after base updates.
 
+## LAB-CONOPS-005 — Windows base construction
+
+The operator supplies a local Windows ISO or temporary official HTTPS download
+URL to the Linux-hosted builder. It creates the disk and stable virtual hardware
+identity, installs Windows Home unattended, then pauses in a visible guest
+PowerShell session for product-key entry. Successful activation and worker
+installation shut down the guest; explicit host confirmation seals the base.
+The purchased key never crosses the guest boundary.
+
 ## Off-nominal behavior
 
 - Missing or corrupt input is rejected before execution.

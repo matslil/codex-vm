@@ -94,3 +94,8 @@ A product key or digital-license operation is performed interactively while
 constructing the stable Windows base. Keys are never job inputs. Environment
 and job overlays inherit activation while retaining the same virtual hardware
 identity; one license is not used for concurrent clones.
+
+The base builder creates a random one-time local administrator credential for
+unattended OOBE and stores its recovery value only in the mode-`0600` VM state
+directory. The purchased Windows product key is not accepted by the host-side
+builder and is entered only into the visible guest PowerShell prompt.

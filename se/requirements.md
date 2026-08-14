@@ -250,6 +250,11 @@ existing digital license or deferred manual activation, and shall not persist
 the entered product key in repository configuration, build artifacts, or
 process arguments.
 
+The Linux-hosted base builder shall accept a local Windows ISO or download one
+from an operator-supplied HTTPS URL, install the selected Home edition using
+QEMU, Secure Boot-capable OVMF, and a persistent software TPM 2.0 identity, and
+shall place the product-key prompt only inside the guest session.
+
 For desktop IDE environments, provisioning shall support running the worker in
 a dedicated test user's interactive session rather than Session 0.
 

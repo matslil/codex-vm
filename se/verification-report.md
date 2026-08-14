@@ -23,12 +23,13 @@ Status: automated baseline passing; native VM demonstrations deferred
 | `LAB-VER-013` | `LAB-REQ-IO-002` | Quota implementation | Deferred |
 | `LAB-VER-014` | `LAB-REQ-ENV-002`, `LAB-REQ-ENV-005`, `LAB-REQ-JOB-002`, `LAB-REQ-IO-001`, `LAB-REQ-OPS-001`, `LAB-REQ-OPS-003` | `tests/test_runtime.py` | Pass |
 | `LAB-VER-015` | `LAB-REQ-OPS-003` | `tests/test_provisioning.py`; native demonstration pending | Partial |
+| `LAB-VER-016` | `LAB-REQ-OPS-003` | `tests/test_provisioning.py`; real Windows installation pending | Partial |
 
 ## Commands run
 
 ```text
 PYTHONPATH=src python3 -m unittest discover -v
-25 tests passed
+28 tests passed
 ```
 
 The HTTP integration tests required permission to bind a loopback port outside

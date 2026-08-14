@@ -5,10 +5,62 @@ install Docker, containerd, Hyper-V, WSL, or the Windows Containers feature.
 
 ## 1. Prepare the stable base
 
-Install Windows Home in a QEMU/KVM qcow2 disk. Configure one persistent virtual
-machine identity and retain its UUID, virtual TPM state, firmware variables,
-disk-controller model, CPU model, and MAC address. Environment and job overlays
-must be booted with that same identity, sequentially, for one Windows license.
+Obtain a temporary direct ISO link from Microsoft's official
+[Windows 11 download page](https://www.microsoft.com/software-download/windows11),
+or use the download link from a Windows order confirmation. The Microsoft
+retail links expire, so the repository does not contain a permanent ISO URL.
+
+From the repository root, run:
+
+```sh
+provisioning/windows/build-base.sh \
+  --iso 'https://temporary-download-link.example/Windows.iso' \
+  --output work/windows-home-base
+```
+
+`--iso` can instead name an existing local ISO. Add `--iso-sha256 HEX` when a
+trusted checksum is available. The builder downloads a checksum-pinned Python
+embeddable ZIP and expands it as the worker's private runtime,
+creates a qcow2 disk, unique UUID and MAC, writable OVMF variable store, and
+persistent software TPM 2.0 state, and then starts QEMU/KVM with Secure Boot.
+It uses SATA storage and an emulated Intel network adapter, so Windows Setup
+does not need a separate VirtIO driver ISO.
+
+Windows Setup selects `Windows 11 Home`, partitions the disk, creates a random
+temporary `codex-build` administrator, and logs it in once. A visible
+PowerShell window then asks for the product key. The key is entered inside the
+VM and is never passed through the Linux shell, QEMU command line, answer file,
+provisioning ISO, or manifest. After activation and worker installation, the VM
+shuts down. Confirm success in the host terminal to seal the base disk.
+
+For an ISO containing Windows 10 instead, explicitly select its image name:
+
+```sh
+provisioning/windows/build-base.sh \
+  --iso /path/to/Windows10.iso \
+  --edition 'Windows 10 Home' \
+  --output work/windows-10-home-base
+```
+
+Use `--prepare-only` to download and construct all artifacts without booting a
+VM. `build-base.sh --help` lists memory, CPU, disk, display, accelerator, OVMF,
+and checksum options. Required host commands are QEMU (`qemu-system-x86_64` and
+`qemu-img`), `swtpm`, `genisoimage`, `curl`, `openssl`, and Python 3. KVM is
+strongly recommended; the TCG fallback is much slower.
+
+The completed directory contains:
+
+- `windows-home-base.qcow2`, sealed read-only after confirmation;
+- `vm.conf`, containing the stable virtual hardware identity;
+- `OVMF_VARS.fd` and `tpm/`, which must remain with that identity;
+- `manifest.json`, containing component hashes and provisioning status;
+- `build-user-password`, a generated recovery credential stored with mode
+  `0600`.
+
+Environment and job overlays must be booted with this same identity,
+sequentially, for one Windows license.
+
+### Manual guest-only alternative
 
 Build the Python wheel outside the guest and make the wheel and a Python
 installer/runtime available to the guest. From an elevated interactive

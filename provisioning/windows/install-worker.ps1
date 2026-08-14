@@ -2,8 +2,11 @@ param(
     [Parameter(Mandatory = $true)]
     [string]$Python,
 
-    [Parameter(Mandatory = $true)]
     [string]$Wheel,
+
+    [string]$SourceDirectory,
+
+    [switch]$PortablePython,
 
     [ValidateSet("Prompt", "DigitalLicense", "Skip")]
     [string]$ActivationMode = "Prompt",
@@ -15,6 +18,12 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+if ([bool]$Wheel -eq [bool]$SourceDirectory) {
+    throw "Specify exactly one of -Wheel or -SourceDirectory."
+}
+if ($PortablePython -and $Wheel) {
+    throw "Portable Python installation requires -SourceDirectory, not -Wheel."
+}
 
 function Test-WindowsActivated {
     $WindowsApplicationId = "55c92734-d682-4d71-983e-d6ec3f16059f"
@@ -75,12 +84,28 @@ $Secrets = Join-Path $Root "secrets"
 $EnvironmentManifest = Join-Path $Root "environment.json"
 
 New-Item -ItemType Directory -Force $Root, $State, $Secrets | Out-Null
-& $Python -m venv $Runtime
-& "$Runtime\Scripts\python.exe" -m pip install --no-index $Wheel
+if ($PortablePython) {
+    $WorkerPython = $Python
+    $PackageDestination = Join-Path $Runtime "codex_vm"
+    New-Item -ItemType Directory -Force $PackageDestination | Out-Null
+    Copy-Item -Recurse -Force (Join-Path $SourceDirectory "*") $PackageDestination
+}
+else {
+    & $Python -m venv $Runtime
+    $WorkerPython = "$Runtime\Scripts\python.exe"
+    if ($Wheel) {
+        & $WorkerPython -m pip install --no-index $Wheel
+    }
+    else {
+        $SitePackages = & $WorkerPython -c `
+            "import sysconfig; print(sysconfig.get_paths()['purelib'])"
+        Copy-Item -Recurse -Force $SourceDirectory (Join-Path $SitePackages "codex_vm")
+    }
+}
 
 $Action = New-ScheduledTaskAction `
-    -Execute "$Runtime\Scripts\codex-vm.exe" `
-    -Argument "serve --runtime native --environment-manifest $EnvironmentManifest --root $State --host 0.0.0.0 --port 8443 --certificate $Secrets\worker.crt --private-key $Secrets\worker.key --client-ca $Secrets\controller-ca.crt"
+    -Execute $WorkerPython `
+    -Argument "-m codex_vm.cli serve --runtime native --environment-manifest $EnvironmentManifest --root $State --host 0.0.0.0 --port 8443 --certificate $Secrets\worker.crt --private-key $Secrets\worker.key --client-ca $Secrets\controller-ca.crt"
 if ($WorkerSession -eq "Interactive") {
     $Trigger = New-ScheduledTaskTrigger -AtLogOn -User $WorkerUser
     $Principal = New-ScheduledTaskPrincipal -UserId $WorkerUser `
