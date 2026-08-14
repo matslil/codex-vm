@@ -42,6 +42,10 @@ class GitArchiveTests(unittest.TestCase):
 
 
 class WorkerClientArtifactTests(unittest.TestCase):
+    def test_rejects_plain_http_outside_loopback(self) -> None:
+        with self.assertRaisesRegex(ValueError, "loopback"):
+            WorkerClient("http://worker.invalid", bearer_token=b"a" * 43)
+
     def test_rejects_artifact_path_outside_expected_job_route(self) -> None:
         client = WorkerClient("https://worker.invalid")
         artifact = {

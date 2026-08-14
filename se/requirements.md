@@ -81,17 +81,18 @@ Status: approved for worker selection; provider resolution remains proposed
 
 ### LAB-REQ-API-001 — Common protocol
 
-Linux and Windows workers shall expose the same versioned HTTPS REST protocol
+Linux and Windows workers shall expose the same versioned HTTP REST protocol
 for health, job creation, input upload, start, status, cancellation, and result
 download.
 
 Verification: test  
 Status: approved
 
-### LAB-REQ-API-002 — Mutual authentication
+### LAB-REQ-API-002 — Ephemeral controller authorization
 
-Provisioned worker APIs shall require mutually authenticated TLS using a unique,
-time-limited identity injected into each VM clone.
+Provisioned local worker APIs shall require a unique, time-limited bearer token
+injected into each VM clone and shall be reachable only through a host-loopback
+forward. Mutual TLS may be used for transports without equivalent isolation.
 
 Verification: test and inspection  
 Status: approved

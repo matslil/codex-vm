@@ -5,8 +5,8 @@
 1. The controller identifies a committed local Git revision.
 2. It creates a source archive and provenance manifest.
 3. A provisioner clones a Linux or Windows golden VM image using a disposable
-   disk and injects a unique mutual-TLS identity.
-4. The VM starts its worker API on a host-only control network.
+   disk and injects a unique high-entropy API token.
+4. The VM starts its worker API behind a random loopback-only host forward.
 5. The controller resolves a platform-neutral environment reference and digest.
 6. Linux pulls the selected OCI image. Windows boots a disposable overlay of
    the corresponding pre-provisioned VM layer and verifies its manifest.

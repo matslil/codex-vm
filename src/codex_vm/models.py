@@ -139,6 +139,9 @@ class JobSpec:
         raw_resources = value.get("resources", {})
         if not isinstance(raw_resources, dict):
             raise ValidationError("resources must be an object")
+        raw_network = value.get("network", False)
+        if not isinstance(raw_network, bool):
+            raise ValidationError("network must be a boolean")
         result = cls(
             job_id=str(value.get("job_id", "")),
             operation=str(value.get("operation", "")),
@@ -147,7 +150,7 @@ class JobSpec:
             command=tuple(raw_command),
             timeout_seconds=int(value.get("timeout_seconds", 3600)),
             resources=ResourceSpec.from_dict(raw_resources),
-            network=bool(value.get("network", False)),
+            network=raw_network,
         )
         if not JOB_ID_RE.fullmatch(result.job_id):
             raise ValidationError("job_id is invalid")

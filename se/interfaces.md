@@ -2,8 +2,9 @@
 
 ## LAB-IF-001 — Worker REST API
 
-Protocol version 1 uses HTTP/1.1 and JSON metadata. Provisioned deployments use
-TLS with mandatory client certificates.
+Protocol version 1 uses HTTP/1.1 and JSON metadata. Provisioned local VMs require
+a unique bearer token and expose the guest port only through a host-loopback
+forward. Mutual TLS is optional for transports without equivalent isolation.
 
 | Method and path | Purpose | Success |
 | --- | --- | --- |
@@ -17,7 +18,7 @@ TLS with mandatory client certificates.
 
 Errors are JSON objects containing `error`. Validation errors return `400`,
 unknown objects `404`, state conflicts `409`, and unexpected worker failures
-`500`.
+return a generic `500`. Missing or incorrect authentication returns `401`.
 
 ## LAB-IF-002 — Environment runtime contract
 
@@ -32,7 +33,9 @@ variables:
 | scratch | `/job/scratch` | `CODEX_VM_SCRATCH` | read/write |
 | output | `/job/output` | `CODEX_VM_OUTPUT` | read/write |
 
-Every regular, non-symlink file at the output root becomes a result artifact.
+Every regular, non-symlink file with a protocol-safe name at the output root
+becomes a result artifact. Aggregate input and output transfer limits are
+enforced independently from the planned disk-area quota.
 
 ## LAB-IF-003 — Environment artifact store
 

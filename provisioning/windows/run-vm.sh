@@ -4,10 +4,13 @@ set -euo pipefail
 usage() {
     cat <<'EOF'
 Usage: run-vm.sh --vm-dir DIR [--disk DISK] [--cdrom ISO ...]
-                 [--boot-cdrom] [--display TYPE]
+                 [--boot-cdrom] [--display TYPE] [--worker-port PORT]
+                 [--internet]
 
 Boot a Windows VM using the stable UUID, MAC address, OVMF variables, and TPM
 state recorded in DIR/vm.conf. DISK defaults to DIR/windows-home-base.qcow2.
+Networking is isolated by default. --worker-port forwards one loopback-only
+host port to guest port 8443. --internet is reserved for base provisioning.
 EOF
 }
 
@@ -15,6 +18,8 @@ vm_dir=""
 disk=""
 display="gtk"
 boot_cdrom=false
+internet=false
+worker_port=""
 cdroms=()
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -22,11 +27,27 @@ while [[ $# -gt 0 ]]; do
         --disk) disk=${2:?missing --disk value}; shift 2 ;;
         --cdrom) cdroms+=("${2:?missing --cdrom value}"); shift 2 ;;
         --boot-cdrom) boot_cdrom=true; shift ;;
+        --worker-port) worker_port=${2:?missing --worker-port value}; shift 2 ;;
+        --internet) internet=true; shift ;;
         --display) display=${2:?missing --display value}; shift 2 ;;
         --help|-h) usage; exit 0 ;;
         *) echo "unknown argument: $1" >&2; usage >&2; exit 64 ;;
     esac
 done
+
+if $internet && [[ -n "$worker_port" ]]; then
+    echo "--internet and --worker-port cannot be combined" >&2
+    exit 64
+fi
+if [[ -n "$worker_port" ]]; then
+    [[ "$worker_port" =~ ^[0-9]+$ ]] || { echo "worker port is invalid" >&2; exit 65; }
+    worker_port_number=$((10#$worker_port))
+    if (( worker_port_number < 1024 || worker_port_number > 65535 )); then
+        echo "worker port must be between 1024 and 65535" >&2
+        exit 65
+    fi
+    worker_port=$worker_port_number
+fi
 
 [[ -n "$vm_dir" ]] || { usage >&2; exit 64; }
 vm_dir=$(realpath "$vm_dir")
@@ -86,6 +107,15 @@ trap cleanup EXIT INT TERM
 "$swtpm" socket --tpm2 --tpmstate "dir=$tpm_dir,lock" \
     --ctrl "type=unixio,path=$socket,terminate" --pid "file=$pid_file" --daemon
 
+if $internet; then
+    netdev="user,id=net0"
+else
+    netdev="user,id=net0,restrict=on"
+    if [[ -n "$worker_port" ]]; then
+        netdev+=",hostfwd=tcp:127.0.0.1:${worker_port}-:8443"
+    fi
+fi
+
 arguments=(
     -name codex-windows-home
     -machine "q35,smm=on,accel=$accel"
@@ -102,7 +132,7 @@ arguments=(
     -chardev "socket,id=chrtpm,path=$socket"
     -tpmdev emulator,id=tpm0,chardev=chrtpm
     -device tpm-crb,tpmdev=tpm0
-    -netdev user,id=net0
+    -netdev "$netdev"
     -device "e1000e,netdev=net0,mac=$mac"
     -device qemu-xhci
     -device usb-tablet

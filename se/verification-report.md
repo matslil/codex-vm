@@ -1,7 +1,7 @@
 # Verification report
 
-Date: 2026-08-06  
-Baseline: first implementation attempt  
+Date: 2026-08-14  
+Baseline: hardened local worker transport  
 Status: automated baseline passing; native VM demonstrations deferred
 
 ## Requirement verification status
@@ -15,7 +15,7 @@ Status: automated baseline passing; native VM demonstrations deferred
 | `LAB-VER-005` | `LAB-REQ-JOB-001` | `tests/test_manager.py` | Pass |
 | `LAB-VER-006` | `LAB-REQ-JOB-002`, `LAB-REQ-IO-001`, `LAB-REQ-NET-001`, `LAB-REQ-NET-002` | `tests/test_runtime.py` | Pass |
 | `LAB-VER-007` | `LAB-REQ-SRC-001`, `LAB-REQ-SRC-002` | `tests/test_controller.py` | Pass |
-| `LAB-VER-008` | `LAB-REQ-API-002` | TLS integration test gap | Pending |
+| `LAB-VER-008` | `LAB-REQ-API-002` | `tests/test_api.py`, `tests/test_security.py`, `tests/test_controller.py` | Pass |
 | `LAB-VER-009` | `LAB-REQ-JOB-005`, `LAB-REQ-OPS-001` | Linux VM demonstration | Deferred |
 | `LAB-VER-010` | `LAB-REQ-JOB-005`, `LAB-REQ-OPS-001` | Windows VM demonstration | Deferred |
 | `LAB-VER-011` | `LAB-REQ-SEC-001`, `LAB-REQ-SEC-002` | Threat-model review | Deferred |
@@ -29,7 +29,9 @@ Status: automated baseline passing; native VM demonstrations deferred
 
 ```text
 PYTHONPATH=src python3 -m unittest discover -v
-28 tests passed
+43 tests passed
+systemd-analyze security --offline=yes provisioning/linux/codex-vm.service
+3.2 OK (improved from 9.4 UNSAFE)
 ```
 
 The HTTP integration tests required permission to bind a loopback port outside

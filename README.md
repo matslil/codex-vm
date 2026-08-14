@@ -7,8 +7,8 @@ privileged containers; Windows Home uses copy-on-write VM layers and native
 execution. The public job configuration and worker protocol are the same.
 
 This first implementation concentrates on Intel Linux and Intel Windows. macOS,
-iOS, Android, hypervisor providers, multi-container topologies, and automated
-certificate issuance remain planned extensions.
+iOS, Android, hypervisor providers, and multi-container topologies remain
+planned extensions.
 
 ## Architecture
 
@@ -20,7 +20,7 @@ local Git repository
 controller -----------------------------------+
         |                                      |
         | provision copy-on-write VM           |
-        | HTTPS with mutual TLS                 |
+        | loopback-forwarded authenticated HTTP|
         v                                      |
 disposable Linux or Windows VM                 |
   +-- small Python worker REST API             |
@@ -41,7 +41,8 @@ than the job submitted by a user.
 
 - Create source archives from any local Git repository without forge access.
 - Submit a versioned job description and checksum-declared inputs over HTTP.
-- Protect the API with mutual TLS when certificate arguments are supplied.
+- Protect the local API with a short-lived per-VM bearer token.
+- Optionally protect non-local transports with mutual TLS.
 - Pull and run a digest-pinned privileged Linux environment image.
 - Verify and run a native Windows Home environment baked into a disposable VM
   layer, without Docker, containerd, Hyper-V, or nested virtualization.
@@ -50,8 +51,10 @@ than the job submitted by a user.
 - Cancel or time out jobs.
 - Provision the common worker software on Ubuntu and Windows templates.
 
-The HTTP-only mode exists for local tests. Provisioned workers must use mutual
-TLS and bind the service only to a host-only control interface.
+Provisioned workers use HTTP only through a QEMU or hypervisor forward bound to
+host loopback. The guest receives a unique bearer token for that VM lifetime;
+the golden image contains no token. Mutual TLS remains available for transports
+that cannot provide equivalent host-only isolation.
 
 ## Install for development
 
@@ -78,26 +81,29 @@ handled by this baseline exporter.
 
 ## Start a development worker
 
-The following non-TLS form is only for loopback development:
+The following unauthenticated form is only for loopback development:
 
 ```sh
-codex-vm serve --root work --host 127.0.0.1 --port 8443
+codex-vm serve --root work --host 127.0.0.1 --port 8443 --insecure-no-auth
 ```
 
-Production VM template invocation:
+Provisioned VM invocation after the provider injects a mode-`0600` token:
+
+```sh
+codex-vm create-token work/job-123/controller.token
+```
 
 ```sh
 codex-vm serve \
   --root /var/lib/codex-vm \
-  --host 192.0.2.10 \
+  --host 0.0.0.0 \
   --port 8443 \
-  --certificate /run/codex-vm/worker.crt \
-  --private-key /run/codex-vm/worker.key \
-  --client-ca /run/codex-vm/controller-ca.crt
+  --token-file /run/codex-vm/controller.token
 ```
 
-Certificates are injected into each VM clone and must not be stored in the
-golden image.
+The provider forwards a random host loopback port to guest port 8443. The token
+is injected into each VM clone, is never stored in the golden image, and is
+deleted with the VM.
 
 ## Submit a job
 
@@ -105,10 +111,8 @@ See [`config/job.example.json`](config/job.example.json). After adjusting its
 input digest and size:
 
 ```sh
-codex-vm submit https://worker:8443 config/job.example.json \
-  --ca certificates/ca.crt \
-  --certificate certificates/controller.crt \
-  --private-key certificates/controller.key \
+codex-vm submit http://127.0.0.1:18443 config/job.example.json \
+  --token-file work/job-123/controller.token \
   --input source=work/topal-source.tar.gz \
   --results work/results
 ```
@@ -122,7 +126,8 @@ The environment sees these logical areas:
 | Scratch | `/job/scratch` | `CODEX_VM_SCRATCH` | read/write |
 | Output | `/job/output` | `CODEX_VM_OUTPUT` | read/write |
 
-Every regular file placed in the output directory is returned as an artifact.
+Every regular file with a protocol-safe name placed in the output directory is
+returned as an artifact. Aggregate input and output limits are enforced.
 
 ## Environment contract
 
@@ -165,7 +170,7 @@ Activation belongs to the stable base VM, not a job clone. Reuse the same VM
 UUID, virtual TPM state, and virtual hardware definition for sequential job
 overlays. Concurrent clones require separate Windows licenses and identities.
 
-Image boot, TLS injection, address discovery, and final deletion remain behind
+Image boot, token injection, port allocation, and final deletion remain behind
 the planned hypervisor-provider interface. [`config/environments.example.json`](config/environments.example.json)
 shows how both deployment kinds are hidden behind the same reference/digest
 selection.

@@ -4,11 +4,41 @@ from __future__ import annotations
 
 import hashlib
 import os
+import secrets
+import stat
 import tempfile
 from pathlib import Path
 from typing import BinaryIO
 
 from .models import NAME_RE, ValidationError
+
+
+def create_bearer_token(path: Path) -> None:
+    """Create a new token atomically without ever printing it or overwriting a file."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    try:
+        with os.fdopen(descriptor, "wb") as stream:
+            stream.write(secrets.token_urlsafe(32).encode("ascii") + b"\n")
+            stream.flush()
+            os.fsync(stream.fileno())
+    except BaseException:
+        path.unlink(missing_ok=True)
+        raise
+
+
+def load_bearer_token(path: Path) -> bytes:
+    """Load a high-entropy token without accepting loose Unix permissions."""
+    try:
+        metadata = path.stat()
+        value = path.read_bytes().strip()
+    except OSError as error:
+        raise ValueError(f"cannot read bearer token file: {path}") from error
+    if os.name != "nt" and stat.S_IMODE(metadata.st_mode) & 0o077:
+        raise ValueError("bearer token file must not be accessible by group or others")
+    if not 32 <= len(value) <= 4096 or any(byte <= 0x20 or byte >= 0x7F for byte in value):
+        raise ValueError("bearer token must contain 32 to 4096 printable ASCII characters")
+    return value
 
 
 def safe_name(value: str) -> str:

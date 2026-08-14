@@ -84,6 +84,21 @@ $Secrets = Join-Path $Root "secrets"
 $EnvironmentManifest = Join-Path $Root "environment.json"
 
 New-Item -ItemType Directory -Force $Root, $State, $Secrets | Out-Null
+$AclPrincipals = @(
+    "*S-1-5-18:(OI)(CI)F",
+    "*S-1-5-32-544:(OI)(CI)F"
+)
+if ($WorkerSession -eq "Interactive") {
+    $Account = [Security.Principal.NTAccount]::new($WorkerUser)
+    $WorkerSid = $Account.Translate([Security.Principal.SecurityIdentifier]).Value
+    $AclPrincipals += "*$($WorkerSid):(OI)(CI)M"
+}
+$AclArguments = @($Root, "/inheritance:r", "/grant:r") + $AclPrincipals
+& icacls.exe @AclArguments | Out-Null
+if ($LASTEXITCODE -ne 0) {
+    throw "Failed to restrict the worker directory ACL"
+}
+
 if ($PortablePython) {
     $WorkerPython = $Python
     $PackageDestination = Join-Path $Runtime "codex_vm"
@@ -105,7 +120,7 @@ else {
 
 $Action = New-ScheduledTaskAction `
     -Execute $WorkerPython `
-    -Argument "-m codex_vm.cli serve --runtime native --environment-manifest $EnvironmentManifest --root $State --host 0.0.0.0 --port 8443 --certificate $Secrets\worker.crt --private-key $Secrets\worker.key --client-ca $Secrets\controller-ca.crt"
+    -Argument "-m codex_vm.cli serve --runtime native --environment-manifest $EnvironmentManifest --root $State --host 0.0.0.0 --port 8443 --token-file $Secrets\controller.token"
 if ($WorkerSession -eq "Interactive") {
     $Trigger = New-ScheduledTaskTrigger -AtLogOn -User $WorkerUser
     $Principal = New-ScheduledTaskPrincipal -UserId $WorkerUser `
@@ -124,4 +139,14 @@ Register-ScheduledTask `
     -Settings $Settings `
     -Force | Out-Null
 
-Write-Host "Native Windows worker installed for $WorkerSession execution. Inject per-VM certificates into $Secrets before boot."
+Remove-NetFirewallRule -DisplayName "Codex VM worker control" -ErrorAction SilentlyContinue
+New-NetFirewallRule `
+    -DisplayName "Codex VM worker control" `
+    -Direction Inbound `
+    -Action Allow `
+    -Protocol TCP `
+    -LocalPort 8443 `
+    -RemoteAddress "10.0.2.2" `
+    -Profile Any | Out-Null
+
+Write-Host "Native Windows worker installed for $WorkerSession execution. Inject a per-VM controller.token into $Secrets before boot."

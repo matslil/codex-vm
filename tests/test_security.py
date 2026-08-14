@@ -1,12 +1,18 @@
 from __future__ import annotations
 
+import os
 import tempfile
 import unittest
 from io import BytesIO
 from pathlib import Path
 
 from codex_vm.models import ValidationError
-from codex_vm.security import receive_verified, sha256_file
+from codex_vm.security import (
+    create_bearer_token,
+    load_bearer_token,
+    receive_verified,
+    sha256_file,
+)
 from tests.helpers import digest
 
 
@@ -50,6 +56,34 @@ class ReceiveVerifiedTests(unittest.TestCase):
                 expected_digest=digest(b"hello"),
                 maximum_size=4,
             )
+
+
+class BearerTokenTests(unittest.TestCase):
+    def test_creates_private_token_without_overwrite(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "job" / "controller.token"
+            create_bearer_token(path)
+            self.assertGreaterEqual(len(load_bearer_token(path)), 32)
+            if os.name != "nt":
+                self.assertEqual(path.stat().st_mode & 0o777, 0o600)
+            with self.assertRaises(FileExistsError):
+                create_bearer_token(path)
+
+    def test_loads_private_high_entropy_token(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "controller.token"
+            path.write_text("a" * 43 + "\n", encoding="ascii")
+            path.chmod(0o600)
+            self.assertEqual(load_bearer_token(path), b"a" * 43)
+
+    @unittest.skipIf(os.name == "nt", "POSIX permission check")
+    def test_rejects_public_token_file(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "controller.token"
+            path.write_text("a" * 43, encoding="ascii")
+            path.chmod(0o644)
+            with self.assertRaisesRegex(ValueError, "group or others"):
+                load_bearer_token(path)
 
 
 if __name__ == "__main__":

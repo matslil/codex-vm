@@ -46,10 +46,10 @@ VM's UUID and virtual TPM identity.
 
 ```text
 Git commit --archive--> source object
-source object --HTTPS--> build environment
-build environment --HTTPS--> release package
-release package --HTTPS--> clean package-test environment
-test environment --HTTPS--> evidence bundle
+source object --authenticated HTTP--> build environment
+build environment --authenticated HTTP--> release package
+release package --authenticated HTTP--> clean package-test environment
+test environment --authenticated HTTP--> evidence bundle
 ```
 
 ## Architecture decisions
@@ -76,10 +76,12 @@ the worker boots, and the worker verifies its embedded manifest.
 A pinned Python runtime and standard-library implementation provide one worker
 protocol on Linux and Windows with a small dependency and bootstrap surface.
 
-### LAB-ADR-005 — Controller-initiated HTTPS
+### LAB-ADR-005 — Controller-initiated local HTTP
 
-The controller initiates communication to a worker API on a host-only network.
-Mutual TLS binds each connection to the controller and one ephemeral VM.
+The controller initiates communication through a random loopback-bound host
+port forwarded to one worker VM. A high-entropy bearer token binds requests to
+that VM lifetime. Hypervisor policy blocks other guest-to-host and external
+traffic. Mutual TLS remains optional for non-local transports.
 
 ### LAB-ADR-006 — Platform-specific deployment behind one contract
 

@@ -7,6 +7,12 @@ from tests.helpers import job_spec
 
 
 class JobSpecTests(unittest.TestCase):
+    def test_rejects_string_network_boolean(self) -> None:
+        value = job_spec()
+        value["network"] = "false"
+        with self.assertRaisesRegex(ValidationError, "network must be a boolean"):
+            JobSpec.from_dict(value)
+
     # LAB-REQ-ENV-002: environment selection is immutable and digest pinned.
     def test_builds_digest_pinned_image(self) -> None:
         spec = JobSpec.from_dict(job_spec())

@@ -39,8 +39,8 @@ iso_source=""
 iso_sha256=""
 output="work/windows-home-base"
 edition="Windows 11 Home"
-python_source="https://www.python.org/ftp/python/3.13.7/python-3.13.7-embed-amd64.zip"
-python_sha256="f6cca216a359be84797cabb54149ce5e062afb16cc7567eb7fc51cacb2d86b65"
+python_source="https://www.python.org/ftp/python/3.13.14/python-3.13.14-embed-amd64.zip"
+python_sha256="90b4e5b9898b72d744650524bff92377c367f44bd5fbd09e3148656c080ad907"
 python_source_overridden=false
 python_sha256_overridden=false
 disk_size="80G"
@@ -162,7 +162,7 @@ obtain() {
 }
 
 windows_iso=$(obtain "$iso_source" "$downloads/windows.iso" "$iso_sha256")
-python_runtime=$(obtain "$python_source" "$downloads/python-3.13.7-embed-amd64.zip" "$python_sha256")
+python_runtime=$(obtain "$python_source" "$downloads/python-3.13.14-embed-amd64.zip" "$python_sha256")
 windows_iso_digest=$(verify_digest "$windows_iso" "$iso_sha256")
 python_digest=$(verify_digest "$python_runtime" "$python_sha256")
 if [[ -z "$iso_sha256" ]]; then
@@ -307,7 +307,8 @@ fi
 echo "Starting Windows Setup. Keep the VM window open."
 echo "After installation, Windows will open a PowerShell window asking for the product key."
 "$script_dir/run-vm.sh" --vm-dir "$output" --disk "$disk" \
-    --cdrom "$windows_iso" --cdrom "$payload_iso" --boot-cdrom --display "$display"
+    --cdrom "$windows_iso" --cdrom "$payload_iso" --boot-cdrom --display "$display" \
+    --internet
 
 printf 'Did the guest report successful provisioning before it shut down? [y/N] '
 read -r confirmed

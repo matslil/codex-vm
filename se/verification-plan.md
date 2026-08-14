@@ -33,7 +33,7 @@ reported rather than silently treated as passing.
 | `LAB-VER-005` | Test | A second active job is rejected. |
 | `LAB-VER-006` | Test | Linux Docker command construction pins the digest, mounts input read-only, applies limits, and selects privileged execution. |
 | `LAB-VER-007` | Test | Git archive provenance identifies the selected commit/tree and matches archive size/digest. |
-| `LAB-VER-008` | Test | Mutual TLS rejects an untrusted or absent client certificate. |
+| `LAB-VER-008` | Test | A provisioned worker rejects an absent or incorrect ephemeral token; unauthenticated mode is restricted to explicit loopback development use. |
 | `LAB-VER-009` | Demonstration | Linux golden image boots, pulls a cached/new image, runs a job, and is deleted. |
 | `LAB-VER-010` | Demonstration | Windows Home retains activation and environment identity through base, environment, and disposable job qcow2 layers. |
 | `LAB-VER-011` | Analysis | Hypervisor network policy remains effective after guest administrator compromise. |

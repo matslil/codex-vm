@@ -28,8 +28,9 @@ or reused for unrelated meaning.
 
 This first baseline is **proposed**. It covers Intel Linux and Intel Windows,
 one active job per disposable VM, one primary environment runtime per job,
-local Git source export, digest-pinned environment selection, and HTTPS worker
-communication. The human maintainer approves this baseline by merging it.
+local Git source export, digest-pinned environment selection, and authenticated
+host-local worker communication. The human maintainer approves this baseline
+by merging it.
 
 ## Scope boundaries
 
@@ -47,7 +48,7 @@ Deferred:
 
 - macOS, iOS, Android, and ARM64 workers;
 - concrete libvirt, Hyper-V, Proxmox, and cloud provisioner adapters;
-- automatic PKI issuance;
+- automatic PKI issuance for optional non-local TLS transports;
 - multiple primary test instances and cross-host test networks;
 - Git submodule and Git LFS source assembly;
 - VS Code automation and Topal-specific environment definitions.

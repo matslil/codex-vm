@@ -134,9 +134,22 @@ provisioning/windows/new-job-overlay.sh \
 ```
 
 Boot that small overlay with the stable Windows identity, inject only its
-short-lived worker TLS material, and submit the same REST job schema used for a
-Linux worker. Delete the child overlay after artifact collection. The selected
-environment layer remains unchanged and can be reused for the next job.
+short-lived `C:\ProgramData\codex-vm\secrets\controller.token`, and start it
+with a loopback-only host forward, for example:
+
+```sh
+provisioning/windows/run-vm.sh \
+  --vm-dir work/windows-home-base \
+  --disk work/topal-package-test-job-1234.qcow2 \
+  --worker-port 18443
+```
+
+The launcher uses QEMU `restrict=on`; the guest cannot reach the host or
+Internet, while `127.0.0.1:18443` on the host reaches guest port 8443. Submit
+the common REST job using the same token, then delete the child overlay and
+token after artifact collection. The selected environment layer remains
+unchanged and can be reused for the next job. `--internet` is reserved for
+base provisioning and cannot be combined with `--worker-port`.
 
 The current repository does not yet contain the QEMU provider that boots and
 destroys these disks; that provider must also enforce the requested CPU,

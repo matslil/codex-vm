@@ -26,6 +26,9 @@ class WindowsProvisioningTests(unittest.TestCase):
         self.assertIn('ValidateSet("System", "Interactive")', script)
         self.assertIn("New-ScheduledTaskTrigger -AtLogOn", script)
         self.assertIn("[switch]$PortablePython", script)
+        self.assertIn("--token-file $Secrets\\controller.token", script)
+        self.assertNotIn("--private-key", script)
+        self.assertIn('-RemoteAddress "10.0.2.2"', script)
         self.assertNotIn("docker", script.lower())
         self.assertNotIn("containerd", script.lower())
 
@@ -37,6 +40,7 @@ class WindowsProvisioningTests(unittest.TestCase):
         self.assertNotIn("--product-key", builder)
         self.assertNotIn("ProductKey", answer_file)
         self.assertIn("inside the VM using a secure PowerShell prompt", builder)
+        self.assertIn("--internet", builder)
 
     def test_base_builder_prepares_artifacts_without_a_vm(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -169,6 +173,8 @@ class WindowsProvisioningTests(unittest.TestCase):
                     "--boot-cdrom",
                     "--display",
                     "none",
+                    "--worker-port",
+                    "18443",
                 ],
                 check=False,
                 capture_output=True,
@@ -183,6 +189,25 @@ class WindowsProvisioningTests(unittest.TestCase):
             self.assertIn("-device tpm-crb,tpmdev=tpm0", command)
             self.assertIn("property=secure,value=on", command)
             self.assertIn("-boot menu=on,once=d", command)
+            self.assertIn("user,id=net0,restrict=on", command)
+            self.assertIn("hostfwd=tcp:127.0.0.1:18443-:8443", command)
+
+    def test_vm_launcher_separates_internet_from_worker_forwarding(self) -> None:
+        result = subprocess.run(
+            [
+                str(REPOSITORY / "provisioning/windows/run-vm.sh"),
+                "--vm-dir",
+                "/unused",
+                "--internet",
+                "--worker-port",
+                "18443",
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(result.returncode, 64)
+        self.assertIn("cannot be combined", result.stderr)
 
     def test_windows_example_uses_common_job_schema(self) -> None:
         value = json.loads(

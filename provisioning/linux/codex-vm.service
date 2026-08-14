@@ -6,11 +6,31 @@ Requires=docker.service
 
 [Service]
 Type=simple
-ExecStart=/opt/codex-vm/bin/codex-vm serve --root /var/lib/codex-vm --host 0.0.0.0 --port 8443 --certificate /run/codex-vm/worker.crt --private-key /run/codex-vm/worker.key --client-ca /run/codex-vm/controller-ca.crt
+ExecStart=/opt/codex-vm/bin/codex-vm serve --root /var/lib/codex-vm --host 0.0.0.0 --port 8443 --token-file /run/codex-vm/controller.token
 Restart=on-failure
 RestartSec=2
 UMask=0077
+NoNewPrivileges=true
+PrivateDevices=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectClock=true
+ProtectControlGroups=true
+ProtectKernelLogs=true
+ProtectKernelModules=true
+ProtectKernelTunables=true
+ProtectHostname=true
+ProtectProc=invisible
+ProcSubset=pid
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+RestrictNamespaces=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+LockPersonality=true
+SystemCallArchitectures=native
+CapabilityBoundingSet=
+ReadWritePaths=/var/lib/codex-vm /run/codex-vm
 
 [Install]
 WantedBy=multi-user.target
-
