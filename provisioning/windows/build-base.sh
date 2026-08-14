@@ -80,6 +80,17 @@ fi
 [[ -n "$iso_source" ]] || { echo "--iso is required" >&2; usage >&2; exit 64; }
 edition_pattern='^[A-Za-z0-9_.()[:space:]-]+$'
 [[ "$edition" =~ $edition_pattern ]] || { echo "invalid Windows edition name" >&2; exit 65; }
+case "$edition" in
+    "Windows 10 Home"|"Windows 11 Home")
+        # Microsoft's public default key selects the Home image during Setup.
+        # It grants no license and cannot activate Windows.
+        windows_setup_key="TX9XD-98N7V-6WMQ6-BX7FG-H8Q99"
+        ;;
+    *)
+        echo "unsupported Windows edition: $edition (supported: Windows 10 Home, Windows 11 Home)" >&2
+        exit 65
+        ;;
+esac
 [[ "$disk_size" =~ ^[1-9][0-9]*[GM]$ ]] || { echo "invalid disk size" >&2; exit 65; }
 [[ "$memory_mb" =~ ^[0-9]+$ && "$memory_mb" -ge 4096 ]] || { echo "memory must be at least 4096 MiB" >&2; exit 65; }
 [[ "$cpus" =~ ^[0-9]+$ && "$cpus" -ge 2 ]] || { echo "at least two CPUs are required" >&2; exit 65; }
@@ -219,6 +230,7 @@ printf '%s\n' "$build_password" > "$password_file"
 chmod 600 "$password_file"
 
 sed -e "s|@@WINDOWS_EDITION@@|$edition|g" \
+    -e "s|@@WINDOWS_SETUP_KEY@@|$windows_setup_key|g" \
     -e "s|@@BUILD_PASSWORD@@|$build_password|g" \
     "$script_dir/Autounattend.xml.in" > "$payload/Autounattend.xml"
 cat > "$payload/bootstrap-config.json" <<EOF

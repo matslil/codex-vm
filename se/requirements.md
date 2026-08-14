@@ -248,8 +248,10 @@ Status: approved
 Windows provisioning shall not require Hyper-V or the Windows Containers
 feature. It shall securely prompt for an optional product key, support an
 existing digital license or deferred manual activation, and shall not persist
-the entered product key in repository configuration, build artifacts, or
-process arguments.
+the operator-entered activation key in repository configuration, build
+artifacts, or process arguments. The unattended answer file may contain only a
+public generic setup key that selects the requested Home edition and cannot
+activate Windows.
 
 The Linux-hosted base builder shall accept a local Windows ISO or download one
 from an operator-supplied HTTPS URL, install the selected Home edition using

@@ -67,6 +67,11 @@
       </ImageInstall>
       <UserData>
         <AcceptEula>true</AcceptEula>
+        <!-- Public edition-selection key; this does not activate Windows. -->
+        <ProductKey>
+          <Key>@@WINDOWS_SETUP_KEY@@</Key>
+          <WillShowUI>Never</WillShowUI>
+        </ProductKey>
       </UserData>
     </component>
   </settings>

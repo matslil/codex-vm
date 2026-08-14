@@ -69,13 +69,16 @@ class WindowsProvisioningTests(unittest.TestCase):
         self.assertNotIn("docker", script.lower())
         self.assertNotIn("containerd", script.lower())
 
-    def test_base_builder_never_accepts_a_product_key(self) -> None:
+    def test_base_builder_keeps_activation_key_guest_only(self) -> None:
         builder = (REPOSITORY / "provisioning/windows/build-base.sh").read_text(encoding="utf-8")
         answer_file = (REPOSITORY / "provisioning/windows/Autounattend.xml.in").read_text(
             encoding="utf-8"
         )
         self.assertNotIn("--product-key", builder)
-        self.assertNotIn("ProductKey", answer_file)
+        self.assertIn("@@WINDOWS_SETUP_KEY@@", answer_file)
+        self.assertIn("<WillShowUI>Never</WillShowUI>", answer_file)
+        self.assertIn("TX9XD-98N7V-6WMQ6-BX7FG-H8Q99", builder)
+        self.assertIn("cannot activate Windows", builder)
         self.assertIn("inside the VM using a secure PowerShell prompt", builder)
         self.assertIn("--internet", builder)
 
