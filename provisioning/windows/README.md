@@ -58,6 +58,11 @@ answer file, provisioning ISO, or manifest. After activation and worker
 installation, the VM shuts down. Confirm success in the host terminal to seal
 the base disk.
 
+During specialization, Windows suppresses its first-network discovery prompt.
+At first logon, every non-domain connection is explicitly classified as Public,
+which keeps the VM undiscoverable and leaves Windows Firewall enabled while
+still allowing outbound provisioning and activation traffic.
+
 For an ISO containing Windows 10 instead, explicitly select its image name:
 
 ```sh

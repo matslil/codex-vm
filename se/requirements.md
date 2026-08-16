@@ -259,6 +259,10 @@ QEMU, Secure Boot-capable OVMF, and a persistent software TPM 2.0 identity, and
 shall automate all Windows Setup pages before placing the activation-key prompt
 inside the guest session.
 
+The base builder shall not ask the operator to classify the provisioning
+network. It shall select a non-discoverable Public profile while retaining
+outbound connectivity and Windows Firewall protection.
+
 Base construction shall not require a timed operator keypress to enter Windows
 Setup. The builder shall preserve the supplied ISO, derive and hash a no-prompt
 UEFI installer from boot images contained in that ISO, and remove the installer

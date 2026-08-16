@@ -80,6 +80,15 @@
       <ComputerName>CODEX-WIN</ComputerName>
       <TimeZone>W. Europe Standard Time</TimeZone>
     </component>
+    <component name="Microsoft-Windows-Deployment" processorArchitecture="amd64" publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS" xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State">
+      <RunSynchronous>
+        <RunSynchronousCommand wcm:action="add">
+          <Description>Suppress interactive network discovery classification</Description>
+          <Order>1</Order>
+          <Path>reg.exe add "HKLM\SYSTEM\CurrentControlSet\Control\Network\NewNetworkWindowOff" /f</Path>
+        </RunSynchronousCommand>
+      </RunSynchronous>
+    </component>
   </settings>
   <settings pass="oobeSystem">
     <component name="Microsoft-Windows-International-Core" processorArchitecture="amd64" publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS">
@@ -94,7 +103,7 @@
         <HideLocalAccountScreen>true</HideLocalAccountScreen>
         <HideOnlineAccountScreens>true</HideOnlineAccountScreens>
         <HideWirelessSetupInOOBE>true</HideWirelessSetupInOOBE>
-        <NetworkLocation>Work</NetworkLocation>
+        <NetworkLocation>Other</NetworkLocation>
         <ProtectYourPC>3</ProtectYourPC>
       </OOBE>
       <UserAccounts>
@@ -122,6 +131,11 @@
       <FirstLogonCommands>
         <SynchronousCommand wcm:action="add">
           <Order>1</Order>
+          <Description>Use the non-discoverable public network profile</Description>
+          <CommandLine>powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "Get-NetConnectionProfile | Where-Object NetworkCategory -ne 'DomainAuthenticated' | Set-NetConnectionProfile -NetworkCategory Public"</CommandLine>
+        </SynchronousCommand>
+        <SynchronousCommand wcm:action="add">
+          <Order>2</Order>
           <Description>Provision the Codex VM worker</Description>
           <CommandLine>cmd.exe /c for %D in (D E F G H I J K L M N O P Q R S T U V W X Y Z) do @if exist %D:\codex-vm-payload.marker call %D:\bootstrap.cmd</CommandLine>
         </SynchronousCommand>
