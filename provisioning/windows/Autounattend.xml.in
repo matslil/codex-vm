@@ -54,19 +54,24 @@
         <OSImage>
           <InstallFrom>
             <MetaData wcm:action="add">
-              <Key>/IMAGE/NAME</Key>
-              <Value>@@WINDOWS_EDITION@@</Value>
+              <Key>/IMAGE/INDEX</Key>
+              <Value>@@WINDOWS_IMAGE_INDEX@@</Value>
             </MetaData>
           </InstallFrom>
           <InstallTo>
             <DiskID>0</DiskID>
             <PartitionID>3</PartitionID>
           </InstallTo>
-          <WillShowUI>OnError</WillShowUI>
+          <WillShowUI>Never</WillShowUI>
         </OSImage>
       </ImageInstall>
       <UserData>
         <AcceptEula>true</AcceptEula>
+        <!-- Public edition-selection key; this does not activate Windows. -->
+        <ProductKey>
+          <Key>@@WINDOWS_SETUP_KEY@@</Key>
+          <WillShowUI>Never</WillShowUI>
+        </ProductKey>
       </UserData>
     </component>
   </settings>
@@ -74,6 +79,35 @@
     <component name="Microsoft-Windows-Shell-Setup" processorArchitecture="amd64" publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS">
       <ComputerName>CODEX-WIN</ComputerName>
       <TimeZone>W. Europe Standard Time</TimeZone>
+    </component>
+    <component name="Microsoft-Windows-Deployment" processorArchitecture="amd64" publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS" xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State">
+      <RunSynchronous>
+        <RunSynchronousCommand wcm:action="add">
+          <Description>Suppress interactive network discovery classification</Description>
+          <Order>1</Order>
+          <Path>reg.exe add "HKLM\SYSTEM\CurrentControlSet\Control\Network\NewNetworkWindowOff" /f</Path>
+        </RunSynchronousCommand>
+        <RunSynchronousCommand wcm:action="add">
+          <Description>Suppress the Microsoft Edge first-run experience</Description>
+          <Order>2</Order>
+          <Path>reg.exe add "HKLM\SOFTWARE\Policies\Microsoft\Edge" /v HideFirstRunExperience /t REG_DWORD /d 1 /f</Path>
+        </RunSynchronousCommand>
+        <RunSynchronousCommand wcm:action="add">
+          <Description>Disable Microsoft Edge browser sign-in</Description>
+          <Order>3</Order>
+          <Path>reg.exe add "HKLM\SOFTWARE\Policies\Microsoft\Edge" /v BrowserSignin /t REG_DWORD /d 0 /f</Path>
+        </RunSynchronousCommand>
+        <RunSynchronousCommand wcm:action="add">
+          <Description>Disable Microsoft Edge data synchronization</Description>
+          <Order>4</Order>
+          <Path>reg.exe add "HKLM\SOFTWARE\Policies\Microsoft\Edge" /v SyncDisabled /t REG_DWORD /d 1 /f</Path>
+        </RunSynchronousCommand>
+        <RunSynchronousCommand wcm:action="add">
+          <Description>Disable Microsoft Edge browser-data import</Description>
+          <Order>5</Order>
+          <Path>reg.exe add "HKLM\SOFTWARE\Policies\Microsoft\Edge" /v AutoImportAtFirstRun /t REG_DWORD /d 4 /f</Path>
+        </RunSynchronousCommand>
+      </RunSynchronous>
     </component>
   </settings>
   <settings pass="oobeSystem">
@@ -89,7 +123,7 @@
         <HideLocalAccountScreen>true</HideLocalAccountScreen>
         <HideOnlineAccountScreens>true</HideOnlineAccountScreens>
         <HideWirelessSetupInOOBE>true</HideWirelessSetupInOOBE>
-        <NetworkLocation>Work</NetworkLocation>
+        <NetworkLocation>Other</NetworkLocation>
         <ProtectYourPC>3</ProtectYourPC>
       </OOBE>
       <UserAccounts>
@@ -117,6 +151,11 @@
       <FirstLogonCommands>
         <SynchronousCommand wcm:action="add">
           <Order>1</Order>
+          <Description>Use the non-discoverable public network profile</Description>
+          <CommandLine>powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "Get-NetConnectionProfile | Where-Object NetworkCategory -ne 'DomainAuthenticated' | Set-NetConnectionProfile -NetworkCategory Public"</CommandLine>
+        </SynchronousCommand>
+        <SynchronousCommand wcm:action="add">
+          <Order>2</Order>
           <Description>Provision the Codex VM worker</Description>
           <CommandLine>cmd.exe /c for %D in (D E F G H I J K L M N O P Q R S T U V W X Y Z) do @if exist %D:\codex-vm-payload.marker call %D:\bootstrap.cmd</CommandLine>
         </SynchronousCommand>

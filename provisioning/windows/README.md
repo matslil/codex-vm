@@ -19,19 +19,58 @@ provisioning/windows/build-base.sh \
 ```
 
 `--iso` can instead name an existing local ISO. Add `--iso-sha256 HEX` when a
-trusted checksum is available. The builder downloads a checksum-pinned Python
+trusted checksum is available. Some order-confirmation links open a web page
+rather than returning the ISO itself; in that case, download the ISO in a
+browser and pass its local path. Before creating or booting the VM, the builder
+verifies that the supplied file is ISO 9660 media with a valid El Torito catalog
+and a bootable UEFI entry. It preserves that source image, copies it to a
+temporary derived installer, and replaces only the referenced `efisys.bin`
+extent with Microsoft's same-sized `efisys_noprompt.bin`. Both media hashes are
+recorded. The builder downloads a checksum-pinned Python
 embeddable ZIP and expands it as the worker's private runtime,
 creates a qcow2 disk, unique UUID and MAC, writable OVMF variable store, and
 persistent software TPM 2.0 state, and then starts QEMU/KVM with Secure Boot.
 It uses SATA storage and an emulated Intel network adapter, so Windows Setup
 does not need a separate VirtIO driver ISO.
 
-Windows Setup selects `Windows 11 Home`, partitions the disk, creates a random
-temporary `codex-build` administrator, and logs it in once. A visible
-PowerShell window then asks for the product key. The key is entered inside the
-VM and is never passed through the Linux shell, QEMU command line, answer file,
-provisioning ISO, or manifest. After activation and worker installation, the VM
-shuts down. Confirm success in the host terminal to seal the base disk.
+QEMU shows two DVD devices during base construction. The first is the derived
+no-prompt Windows installation ISO. The second is the generated
+`CODEXVM_PAYLOAD` ISO
+containing the answer file, bootstrap scripts, worker source, and private Python
+runtime; it is deliberately separate so the original Windows media is not
+modified. QEMU starts paused while a private QMP connection is established.
+The builder then starts the VM and, on Windows Setup's first reset, opens the
+installer drive and removes its medium through QMP. Merely opening a QEMU tray
+leaves the ISO associated with the drive, so both operations are required to
+prevent Setup from starting again. The payload DVD remains attached and the new
+system disk becomes the next bootable device.
+
+Windows Setup selects Home image index 1 with Microsoft's public generic Home
+setup key, partitions the disk, and completes without interactive Setup pages.
+The supported Microsoft Windows 10 and Windows 11 consumer media both place
+Home at index 1. The generic key is included in the answer file and provisioning
+ISO only to select the edition; it grants no license and does not activate
+Windows. Setup then creates a random temporary `codex-build` administrator and
+logs it in once. If no transient host key was supplied, a visible PowerShell
+window asks for it as the only intended guest interaction. A host-supplied key
+appears transiently in the builder command line and temporary activation ISO,
+but never in the QEMU command line, durable provisioning ISO, answer file,
+manifest, or completed VM output. After activation and worker installation, the
+VM shuts down. Confirm success in the host terminal to seal the base disk.
+
+During specialization, Windows suppresses its first-network discovery prompt.
+At first logon, every non-domain connection is explicitly classified as Public,
+which keeps the VM undiscoverable and leaves Windows Firewall enabled while
+still allowing outbound provisioning and activation traffic. The builder gives
+this installation boot temporary outbound Internet access through QEMU
+user-mode NAT and waits for a default route and working DNS before requesting
+activation. After provisioning shuts the VM down, later worker boots are
+isolated by default; Internet access is not stored as a property of the image.
+
+The machine-level Microsoft Edge policy suppresses its first-run experience,
+disables browser sign-in and synchronization, and prohibits automatic import
+from Google Chrome or another browser for the temporary build account. No
+personal browser data or Microsoft account is needed in the base image.
 
 For an ISO containing Windows 10 instead, explicitly select its image name:
 
@@ -42,10 +81,33 @@ provisioning/windows/build-base.sh \
   --output work/windows-10-home-base
 ```
 
+To provide the activation key from the host without recording the literal in
+interactive shell history, read it visibly into a temporary shell variable and
+pass that variable as the argument:
+
+```sh
+read -r -p 'Windows product key (visible): ' windows_product_key
+provisioning/windows/build-base.sh \
+  --iso /path/to/Windows10.iso \
+  --edition 'Windows 10 Home' \
+  --product-key "$windows_product_key" \
+  --output work/windows-10-home-base
+unset windows_product_key
+```
+
+The expanded argument is transiently visible in the builder process command
+line. The builder validates it before boot, places it on a separate temporary
+activation ISO under its private staging directory, and passes only that ISO's
+path to QEMU. The ISO and its source file are removed by the cleanup trap when
+the build finishes, fails, or is interrupted. They are never placed in the VM
+output directory, provisioning ISO, answer file, manifest, or repository. A
+literal `--product-key AAAAA-...` also works, but normally persists in shell
+history and is therefore discouraged.
+
 Use `--prepare-only` to download and construct all artifacts without booting a
 VM. `build-base.sh --help` lists memory, CPU, disk, display, accelerator, OVMF,
 and checksum options. Required host commands are QEMU (`qemu-system-x86_64` and
-`qemu-img`), `swtpm`, `genisoimage`, `curl`, `openssl`, and Python 3. KVM is
+`qemu-img`), `swtpm`, `genisoimage`, `7z`, `curl`, `openssl`, and Python 3. KVM is
 strongly recommended; the TCG fallback is much slower.
 
 The completed directory contains:
@@ -87,9 +149,10 @@ can accept a GUI job. Do not use a real person's account or password. A
 headless `SYSTEM` process runs in Session 0 and therefore cannot provide valid
 desktop-IDE evidence.
 
-If Windows is not already activated, the default `Prompt` mode asks for a
-25-character product key using `Read-Host -AsSecureString`. Leaving it empty
-attempts automatic activation from an existing digital license. Alternatives:
+If Windows is not already activated and the host did not supply a transient
+key, the default `Prompt` mode asks for a 25-character product key using
+`Read-Host -AsSecureString`. Leaving it empty attempts automatic activation
+from an existing digital license. Alternatives:
 
 ```powershell
 .\install-worker.ps1 ... -ActivationMode DigitalLicense
@@ -102,8 +165,11 @@ string to enter; it is resolved by Microsoft's activation service and, when
 necessary, the interactive Activation troubleshooter.
 
 Before sealing the base, confirm activation in **Settings > System >
-Activation**. Do not put a product key in an unattended XML file, command-line
-argument, repository file, environment manifest, or image-building log.
+Activation**. Do not put a purchased or otherwise private activation key in an
+unattended XML file, repository file, persistent environment manifest, or
+image-building log. If a host argument is used, keep the literal out of shell
+history as shown above. The public generic edition-selection key in the
+generated answer file is not an activation credential.
 
 ## 2. Build a versioned environment layer
 

@@ -11,6 +11,8 @@ param(
     [ValidateSet("Prompt", "DigitalLicense", "Skip")]
     [string]$ActivationMode = "Prompt",
 
+    [string]$ProductKeyFile,
+
     [ValidateSet("System", "Interactive")]
     [string]$WorkerSession = "System",
 
@@ -34,8 +36,39 @@ function Test-WindowsActivated {
     return $null -ne $License
 }
 
+function Wait-ProvisioningNetwork {
+    param([int]$TimeoutSeconds = 120)
+
+    $Deadline = [DateTime]::UtcNow.AddSeconds($TimeoutSeconds)
+    Write-Host "Waiting for provisioning network connectivity..."
+    do {
+        $HasDefaultRoute = $null -ne (Get-NetIPConfiguration |
+            Where-Object {
+                $_.NetAdapter.Status -eq "Up" -and
+                $null -ne $_.IPv4DefaultGateway
+            } |
+            Select-Object -First 1)
+        if ($HasDefaultRoute) {
+            try {
+                Resolve-DnsName -Name "microsoft.com" -Type A -DnsOnly `
+                    -ErrorAction Stop | Out-Null
+                return
+            }
+            catch {
+                # DHCP can complete before the QEMU user-network DNS proxy is ready.
+            }
+        }
+        Start-Sleep -Seconds 5
+    } while ([DateTime]::UtcNow -lt $Deadline)
+
+    throw "Provisioning network did not obtain a default route and working DNS within $TimeoutSeconds seconds."
+}
+
 function Request-WindowsActivation {
-    param([string]$Mode)
+    param(
+        [string]$Mode,
+        [string]$KeyFile
+    )
 
     if ($Mode -eq "Skip" -or (Test-WindowsActivated)) {
         return
@@ -43,11 +76,20 @@ function Request-WindowsActivation {
 
     $HasProductKey = $false
     if ($Mode -eq "Prompt") {
-        Write-Host "Enter a Windows Home product key. Leave it blank to use an existing digital license."
-        $SecureProductKey = Read-Host -AsSecureString "Windows product key"
-        $Pointer = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($SecureProductKey)
-        try {
+        $Pointer = [IntPtr]::Zero
+        if ($KeyFile) {
+            if (-not (Test-Path -LiteralPath $KeyFile -PathType Leaf)) {
+                throw "The transient Windows product-key file is unavailable."
+            }
+            $ProductKey = (Get-Content -LiteralPath $KeyFile -Raw).Trim()
+        }
+        else {
+            Write-Host "Enter a Windows Home product key. Leave it blank to use an existing digital license."
+            $SecureProductKey = Read-Host -AsSecureString "Windows product key"
+            $Pointer = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($SecureProductKey)
             $ProductKey = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($Pointer)
+        }
+        try {
             if ($ProductKey) {
                 if ($ProductKey -notmatch '^[A-Za-z0-9]{5}(-[A-Za-z0-9]{5}){4}$') {
                     throw "The Windows product key must contain five groups of five characters."
@@ -60,9 +102,16 @@ function Request-WindowsActivation {
         }
         finally {
             $ProductKey = $null
-            [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($Pointer)
+            if ($Pointer -ne [IntPtr]::Zero) {
+                [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($Pointer)
+            }
         }
     }
+
+    # The base-image launcher provides temporary outbound QEMU user networking.
+    # Wait for DHCP and DNS because this first-logon script can run before the
+    # Windows network stack has finished initializing.
+    Wait-ProvisioningNetwork
 
     # This contains no secret. It activates an installed key or asks Microsoft's
     # activation service for a digital entitlement already associated with the VM.
@@ -75,7 +124,7 @@ function Request-WindowsActivation {
     }
 }
 
-Request-WindowsActivation -Mode $ActivationMode
+Request-WindowsActivation -Mode $ActivationMode -KeyFile $ProductKeyFile
 
 $Root = "C:\ProgramData\codex-vm"
 $Runtime = Join-Path $Root "runtime"

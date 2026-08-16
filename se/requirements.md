@@ -246,15 +246,38 @@ Status: approved
 ### LAB-REQ-OPS-003 — Windows Home provisioning
 
 Windows provisioning shall not require Hyper-V or the Windows Containers
-feature. It shall securely prompt for an optional product key, support an
-existing digital license or deferred manual activation, and shall not persist
-the entered product key in repository configuration, build artifacts, or
-process arguments.
+feature. It shall securely prompt for an optional product key or accept it as a
+transient host-builder argument, support an existing digital license or
+deferred manual activation, and shall not persist the operator-entered
+activation key in repository configuration, durable build artifacts, the
+answer file, manifest, or image-building logs. A host-supplied key may exist
+only in process memory and a private temporary activation medium removed when
+the builder exits. The unattended answer file may contain only a public generic
+setup key that selects the requested Home edition and cannot activate Windows.
 
 The Linux-hosted base builder shall accept a local Windows ISO or download one
 from an operator-supplied HTTPS URL, install the selected Home edition using
 QEMU, Secure Boot-capable OVMF, and a persistent software TPM 2.0 identity, and
-shall place the product-key prompt only inside the guest session.
+shall automate all Windows Setup pages before placing the activation-key prompt
+inside the guest session.
+
+The base builder shall not ask the operator to classify the provisioning
+network. It shall select a non-discoverable Public profile while retaining
+temporary outbound connectivity and Windows Firewall protection. It shall wait
+for the first-logon network stack to obtain a default route and working DNS
+before requesting activation. Disposable worker boots shall remain isolated
+from external networks unless a separate job policy explicitly grants access.
+
+The base builder shall suppress browser first-run, sign-in, synchronization,
+and browser-data import prompts so the activation-key prompt is the only
+intended first-logon interaction and no personal browser identity or imported
+browser data enters the base image.
+
+Base construction shall not require a timed operator keypress to enter Windows
+Setup. The builder shall preserve the supplied ISO, derive and hash a no-prompt
+UEFI installer from boot images contained in that ISO, and remove the installer
+DVD from the VM on Setup's first reset so subsequent boots select the system
+disk.
 
 For desktop IDE environments, provisioning shall support running the worker in
 a dedicated test user's interactive session rather than Session 0.

@@ -2,15 +2,52 @@ from __future__ import annotations
 
 import json
 import os
+import socket
+import struct
 import subprocess
 import sys
 import tempfile
+import threading
 import unittest
 from pathlib import Path
 
 from codex_vm.models import JobSpec
 
 REPOSITORY = Path(__file__).resolve().parents[1]
+SECTOR_SIZE = 2048
+
+
+def write_bootable_uefi_iso(path: Path) -> None:
+    image = bytearray(26 * SECTOR_SIZE)
+    primary = memoryview(image)[16 * SECTOR_SIZE : 17 * SECTOR_SIZE]
+    primary[0] = 1
+    primary[1:6] = b"CD001"
+    primary[6] = 1
+
+    boot_record = memoryview(image)[17 * SECTOR_SIZE : 18 * SECTOR_SIZE]
+    boot_record[0] = 0
+    boot_record[1:6] = b"CD001"
+    boot_record[6] = 1
+    boot_record[7:30] = b"EL TORITO SPECIFICATION"
+    boot_record[71:75] = (20).to_bytes(4, "little")
+
+    terminator = memoryview(image)[18 * SECTOR_SIZE : 19 * SECTOR_SIZE]
+    terminator[0] = 255
+    terminator[1:6] = b"CD001"
+    terminator[6] = 1
+
+    catalog = memoryview(image)[20 * SECTOR_SIZE : 21 * SECTOR_SIZE]
+    catalog[0] = 1
+    catalog[30:32] = b"\x55\xaa"
+    checksum = (-sum(struct.unpack("<16H", catalog[:32]))) & 0xFFFF
+    catalog[28:30] = checksum.to_bytes(2, "little")
+    catalog[64] = 0x91
+    catalog[65] = 0xEF
+    catalog[66:68] = (1).to_bytes(2, "little")
+    catalog[96] = 0x88
+    catalog[104:108] = (25).to_bytes(4, "little")
+    image[25 * SECTOR_SIZE : 25 * SECTOR_SIZE + 6] = b"PROMPT"
+    path.write_bytes(image)
 
 
 class WindowsProvisioningTests(unittest.TestCase):
@@ -21,7 +58,8 @@ class WindowsProvisioningTests(unittest.TestCase):
         )
         self.assertIn('Read-Host -AsSecureString "Windows product key"', script)
         self.assertIn("Invoke-CimMethod", script)
-        self.assertNotIn("[string]$ProductKey", script)
+        self.assertIn("[string]$ProductKeyFile", script)
+        self.assertNotIn("[string]$ProductKey,", script)
         self.assertIn("serve --runtime native", script)
         self.assertIn('ValidateSet("System", "Interactive")', script)
         self.assertIn("New-ScheduledTaskTrigger -AtLogOn", script)
@@ -29,18 +67,40 @@ class WindowsProvisioningTests(unittest.TestCase):
         self.assertIn("--token-file $Secrets\\controller.token", script)
         self.assertNotIn("--private-key", script)
         self.assertIn('-RemoteAddress "10.0.2.2"', script)
+        self.assertIn("function Wait-ProvisioningNetwork", script)
+        self.assertIn("IPv4DefaultGateway", script)
+        self.assertIn('Resolve-DnsName -Name "microsoft.com"', script)
+        self.assertIn("Wait-ProvisioningNetwork", script)
         self.assertNotIn("docker", script.lower())
         self.assertNotIn("containerd", script.lower())
 
-    def test_base_builder_never_accepts_a_product_key(self) -> None:
+    def test_base_builder_keeps_activation_key_out_of_durable_artifacts(self) -> None:
         builder = (REPOSITORY / "provisioning/windows/build-base.sh").read_text(encoding="utf-8")
         answer_file = (REPOSITORY / "provisioning/windows/Autounattend.xml.in").read_text(
             encoding="utf-8"
         )
-        self.assertNotIn("--product-key", builder)
-        self.assertNotIn("ProductKey", answer_file)
+        self.assertIn("--product-key", builder)
+        self.assertIn("windows-activation.iso", builder)
+        self.assertIn("codex-vm-activation.marker", builder)
+        self.assertNotIn("@@ACTIVATION_PRODUCT_KEY@@", answer_file)
+        self.assertIn("<Key>/IMAGE/INDEX</Key>", answer_file)
+        self.assertIn("@@WINDOWS_IMAGE_INDEX@@", answer_file)
+        self.assertNotIn("/IMAGE/NAME", answer_file)
+        self.assertIn("@@WINDOWS_SETUP_KEY@@", answer_file)
+        self.assertIn("<WillShowUI>Never</WillShowUI>", answer_file)
+        self.assertIn("windows_image_index=1", builder)
+        self.assertIn("TX9XD-98N7V-6WMQ6-BX7FG-H8Q99", builder)
+        self.assertIn("cannot activate Windows", builder)
         self.assertIn("inside the VM using a secure PowerShell prompt", builder)
         self.assertIn("--internet", builder)
+        self.assertIn("NewNetworkWindowOff", answer_file)
+        self.assertIn("<NetworkLocation>Other</NetworkLocation>", answer_file)
+        self.assertIn("Set-NetConnectionProfile -NetworkCategory Public", answer_file)
+        self.assertNotIn("<NetworkLocation>Work</NetworkLocation>", answer_file)
+        self.assertIn("HideFirstRunExperience", answer_file)
+        self.assertIn("BrowserSignin /t REG_DWORD /d 0", answer_file)
+        self.assertIn("SyncDisabled /t REG_DWORD /d 1", answer_file)
+        self.assertIn("AutoImportAtFirstRun /t REG_DWORD /d 4", answer_file)
 
     def test_base_builder_prepares_artifacts_without_a_vm(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -64,13 +124,25 @@ class WindowsProvisioningTests(unittest.TestCase):
                 ': > "$output"\n',
                 encoding="utf-8",
             )
+            fake_seven_zip = tools / "7z"
+            fake_seven_zip.write_text(
+                "#!/bin/sh\n"
+                'case "$*" in\n'
+                "  *efisys_noprompt.bin) printf NOPRMT ;;\n"
+                "  *efisys.bin) printf PROMPT ;;\n"
+                "  *) exit 2 ;;\n"
+                "esac\n",
+                encoding="utf-8",
+            )
             fake_qemu_img.chmod(0o755)
             fake_iso_builder.chmod(0o755)
+            fake_seven_zip.chmod(0o755)
             windows_iso = root / "windows.iso"
             python_runtime = root / "python.zip"
             ovmf_code = root / "OVMF_CODE.fd"
             ovmf_vars = root / "OVMF_VARS.fd"
-            for path in (windows_iso, python_runtime, ovmf_code, ovmf_vars):
+            write_bootable_uefi_iso(windows_iso)
+            for path in (python_runtime, ovmf_code, ovmf_vars):
                 path.write_bytes(path.name.encode())
             output = root / "vm"
             environment = os.environ.copy()
@@ -78,6 +150,7 @@ class WindowsProvisioningTests(unittest.TestCase):
                 {
                     "QEMU_IMG": str(fake_qemu_img),
                     "ISO_BUILDER": str(fake_iso_builder),
+                    "SEVEN_ZIP": str(fake_seven_zip),
                     "HOST_PYTHON": sys.executable,
                 }
             )
@@ -103,6 +176,8 @@ class WindowsProvisioningTests(unittest.TestCase):
                     "2",
                     "--accel",
                     "tcg",
+                    "--product-key",
+                    "AAAAA-BBBBB-CCCCC-DDDDD-EEEEE",
                     "--prepare-only",
                 ],
                 check=False,
@@ -117,10 +192,128 @@ class WindowsProvisioningTests(unittest.TestCase):
             self.assertEqual(manifest["edition"], "Windows 11 Home")
             self.assertTrue((output / "windows-home-base.qcow2").is_file())
             self.assertTrue((output / "provisioning.iso").is_file())
+            derived_media = output / "windows-installer-noprompt.iso"
+            self.assertTrue(derived_media.is_file())
+            self.assertEqual(
+                derived_media.read_bytes()[25 * SECTOR_SIZE : 25 * SECTOR_SIZE + 6],
+                b"NOPRMT",
+            )
+            self.assertEqual(
+                windows_iso.read_bytes()[25 * SECTOR_SIZE : 25 * SECTOR_SIZE + 6],
+                b"PROMPT",
+            )
             self.assertTrue((output / "build-user-password").is_file())
+            self.assertFalse((output / "windows-activation.iso").exists())
+            for artifact in output.rglob("*"):
+                if artifact.is_file():
+                    self.assertNotIn(
+                        b"AAAAA-BBBBB-CCCCC-DDDDD-EEEEE",
+                        artifact.read_bytes(),
+                    )
             configuration = (output / "vm.conf").read_text(encoding="utf-8")
             self.assertIn("VM_ACCEL=tcg", configuration)
             self.assertNotIn("product", configuration.lower())
+            self.assertRegex(manifest["derived_installer_iso_sha256"], r"^sha256:[0-9a-f]{64}$")
+
+    def test_base_builder_rejects_an_html_download_as_windows_media(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            invalid_media = root / "windows.iso"
+            invalid_media.write_text("<!doctype html><title>Download Windows</title>")
+
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(REPOSITORY / "provisioning/windows/validate-install-media.py"),
+                    str(invalid_media),
+                ],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+
+            self.assertEqual(result.returncode, 65)
+            self.assertIn("invalid Windows installation media", result.stderr)
+
+    def test_windows_media_validator_accepts_a_bootable_uefi_iso(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            media = Path(directory) / "windows.iso"
+            write_bootable_uefi_iso(media)
+
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(REPOSITORY / "provisioning/windows/validate-install-media.py"),
+                    str(media),
+                ],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_install_boot_manager_ejects_dvd_after_first_reset(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            socket_path = Path(directory) / "qmp.sock"
+            received: list[dict[str, object]] = []
+            server_error: list[BaseException] = []
+            ready = threading.Event()
+
+            def serve() -> None:
+                try:
+                    with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as listener:
+                        listener.bind(str(socket_path))
+                        listener.listen(1)
+                        ready.set()
+                        connection, _ = listener.accept()
+                        with connection, connection.makefile("rwb") as stream:
+                            stream.write(b'{"QMP":{"version":{},"capabilities":[]}}\n')
+                            stream.flush()
+                            for command in ("qmp_capabilities", "cont"):
+                                request = json.loads(stream.readline())
+                                received.append(request)
+                                self.assertEqual(request["execute"], command)
+                                response = {"return": {}, "id": request["id"]}
+                                stream.write(json.dumps(response).encode() + b"\n")
+                                stream.flush()
+                            stream.write(b'{"event":"RESET","data":{"reason":"guest-reset"}}\n')
+                            stream.flush()
+                            for command in ("blockdev-open-tray", "blockdev-remove-medium"):
+                                request = json.loads(stream.readline())
+                                received.append(request)
+                                self.assertEqual(request["execute"], command)
+                                response = {"return": {}, "id": request["id"]}
+                                stream.write(json.dumps(response).encode() + b"\n")
+                                stream.flush()
+                except BaseException as error:
+                    server_error.append(error)
+
+            thread = threading.Thread(target=serve)
+            thread.start()
+            self.assertTrue(ready.wait(timeout=2))
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(REPOSITORY / "provisioning/windows/manage-install-boot.py"),
+                    str(socket_path),
+                ],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+            thread.join(timeout=2)
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertFalse(thread.is_alive())
+            self.assertEqual(server_error, [])
+            self.assertEqual(received[-2]["execute"], "blockdev-open-tray")
+            self.assertEqual(
+                received[-2]["arguments"],
+                {"device": "cdrom1", "force": True},
+            )
+            self.assertEqual(received[-1]["execute"], "blockdev-remove-medium")
+            self.assertEqual(received[-1]["arguments"], {"id": "windows-installer"})
 
     def test_vm_launcher_uses_stable_identity_and_tpm(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -135,13 +328,17 @@ class WindowsProvisioningTests(unittest.TestCase):
             )
             fake_swtpm = tools / "swtpm"
             fake_swtpm.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+            fake_host_python = tools / "python3"
+            fake_host_python.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
             fake_qemu.chmod(0o755)
             fake_swtpm.chmod(0o755)
+            fake_host_python.chmod(0o755)
             disk = root / "windows-home-base.qcow2"
             code = root / "OVMF_CODE.fd"
             variables = root / "OVMF_VARS.fd"
             installer = root / "windows.iso"
-            for path in (disk, code, variables, installer):
+            payload = root / "provisioning.iso"
+            for path in (disk, code, variables, installer, payload):
                 path.write_bytes(path.name.encode())
             (root / "vm.conf").write_text(
                 "VM_UUID=11111111-2222-3333-4444-555555555555\n"
@@ -159,6 +356,7 @@ class WindowsProvisioningTests(unittest.TestCase):
                 {
                     "QEMU_SYSTEM_X86_64": str(fake_qemu),
                     "SWTPM": str(fake_swtpm),
+                    "HOST_PYTHON": str(fake_host_python),
                     "QEMU_LOG": str(qemu_log),
                 }
             )
@@ -170,6 +368,8 @@ class WindowsProvisioningTests(unittest.TestCase):
                     str(root),
                     "--cdrom",
                     str(installer),
+                    "--cdrom",
+                    str(payload),
                     "--boot-cdrom",
                     "--display",
                     "none",
@@ -188,7 +388,16 @@ class WindowsProvisioningTests(unittest.TestCase):
             self.assertIn("e1000e,netdev=net0,mac=52:54:00:12:34:56", command)
             self.assertIn("-device tpm-crb,tpmdev=tpm0", command)
             self.assertIn("property=secure,value=on", command)
-            self.assertIn("-boot menu=on,once=d", command)
+            self.assertIn("ide-hd,drive=osdisk,bus=sata.0,bootindex=2", command)
+            self.assertIn(
+                "ide-cd,id=windows-installer,drive=cdrom1,bus=sata.1,bootindex=1",
+                command,
+            )
+            self.assertIn("ide-cd,drive=cdrom2,bus=sata.2,bootindex=3", command)
+            self.assertIn("-qmp unix:", command)
+            self.assertIn("-S", command)
+            self.assertIn("-boot menu=on", command)
+            self.assertNotIn("once=d", command)
             self.assertIn("user,id=net0,restrict=on", command)
             self.assertIn("hostfwd=tcp:127.0.0.1:18443-:8443", command)
 
@@ -208,6 +417,21 @@ class WindowsProvisioningTests(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 64)
         self.assertIn("cannot be combined", result.stderr)
+
+    def test_base_builder_enables_internet_only_for_provisioning(self) -> None:
+        builder = (REPOSITORY / "provisioning/windows/build-base.sh").read_text(
+            encoding="utf-8"
+        )
+        launcher = (REPOSITORY / "provisioning/windows/run-vm.sh").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn(
+            'run_arguments+=(--boot-cdrom --display "$display" --internet)',
+            builder,
+        )
+        self.assertIn('netdev="user,id=net0,restrict=on"', launcher)
+        self.assertIn('netdev="user,id=net0"', launcher)
 
     def test_windows_example_uses_common_job_schema(self) -> None:
         value = json.loads(

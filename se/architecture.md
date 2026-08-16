@@ -99,5 +99,7 @@ identity; one license is not used for concurrent clones.
 
 The base builder creates a random one-time local administrator credential for
 unattended OOBE and stores its recovery value only in the mode-`0600` VM state
-directory. The purchased Windows product key is not accepted by the host-side
-builder and is entered only into the visible guest PowerShell prompt.
+directory. The purchased Windows product key is entered either into the visible
+guest PowerShell prompt or passed explicitly to the host builder. In the latter
+case, it is transported on a separate private temporary activation medium that
+is excluded from durable build outputs and removed by the host cleanup trap.

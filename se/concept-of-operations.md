@@ -47,10 +47,12 @@ their base provenance so an environment can be rebuilt after base updates.
 
 The operator supplies a local Windows ISO or temporary official HTTPS download
 URL to the Linux-hosted builder. It creates the disk and stable virtual hardware
-identity, installs Windows Home unattended, then pauses in a visible guest
-PowerShell session for product-key entry. Successful activation and worker
-installation shut down the guest; explicit host confirmation seals the base.
-The purchased key never crosses the guest boundary.
+identity, derives a hashed no-prompt installer while retaining the original
+media, and installs Windows Home unattended. At Setup's first reset, the host
+opens the installer tray and removes the associated medium, then pauses in a
+visible guest PowerShell session for product-key entry. Successful activation
+and worker installation shut down the guest; explicit host confirmation seals
+the base. The purchased key never crosses the guest boundary.
 
 ## Off-nominal behavior
 

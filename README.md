@@ -147,8 +147,10 @@ The Linux script prepares a container-capable Ubuntu template. Windows Home is
 prepared without container support:
 
 1. Run `provisioning/windows/build-base.sh --iso SOURCE`. It downloads HTTPS
-   sources when needed, creates a QEMU/OVMF/swtpm VM, installs Windows Home
-   unattended, and opens a visible in-guest activation prompt.
+   sources when needed, validates the original media, derives a no-prompt UEFI
+   installer, creates a QEMU/OVMF/swtpm VM, installs Windows Home unattended,
+   ejects the installer on Setup's first reset, and opens a visible in-guest
+   activation prompt.
 2. The guest bootstrap invokes `install-worker.ps1`. Its default `Prompt` mode
    securely asks for a product key and passes it directly to Windows activation
    without putting it in host arguments, answer files, configuration, or build

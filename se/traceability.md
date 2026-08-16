@@ -43,7 +43,7 @@
 | `LAB-REQ-SEC-002` | `LAB-ADR-003`, `LAB-ADR-005` | Protocol contains no privileged credentials | Inspection |
 | `LAB-REQ-OPS-001` | Linux and Windows deployment views, `LAB-ADR-006` | Runtime and provisioning platform branches | `LAB-VER-009`, `LAB-VER-010`, `LAB-VER-014` |
 | `LAB-REQ-OPS-002` | `LAB-CMP-001` | Local controller; no hosted CI integration | Inspection |
-| `LAB-REQ-OPS-003` | Windows deployment view, `LAB-ADR-007`, `LAB-CONOPS-005` | `provisioning/windows/`, `runtime.NativeRuntime` | `LAB-VER-014`, `LAB-VER-015`, `LAB-VER-016` |
+| `LAB-REQ-OPS-003` | Windows deployment view, `LAB-ADR-007`, `LAB-CONOPS-005` | Validated no-prompt media derivation, QMP reset/eject manager, `provisioning/windows/`, `runtime.NativeRuntime` | `LAB-VER-014`, `LAB-VER-015`, `LAB-VER-016` |
 
 ## Validation coverage
 

@@ -18,10 +18,11 @@ Options:
   --output DIR              VM state directory (default: work/windows-home-base).
   --iso-sha256 HEX          Expected Windows ISO SHA-256.
   --edition NAME            Install image name (default: Windows 11 Home).
+  --product-key KEY         Transient activation key; never stored in VM output.
   --python-source SOURCE    Python embeddable ZIP path or HTTPS URL.
   --python-sha256 HEX       Expected Python runtime ZIP SHA-256.
   --disk-size SIZE          qcow2 virtual size (default: 80G).
-  --memory-mb MB            Guest memory (default: 8192).
+  --memory-mb MB            Guest memory (default: 4096).
   --cpus COUNT              Guest virtual CPUs (default: 4).
   --accel auto|kvm|tcg      QEMU accelerator (default: auto).
   --display TYPE            QEMU display backend (default: gtk).
@@ -30,8 +31,9 @@ Options:
   --prepare-only            Build artifacts but do not boot QEMU.
   --help                    Show this help.
 
-The Windows product key is intentionally not a host option. Windows asks for it
-inside the VM using a secure PowerShell prompt after installation.
+Omit --product-key to enter it inside the VM using a secure PowerShell prompt.
+Passing a literal key may record it in shell history; see the Windows README for
+a visible-input pattern that avoids recording the value.
 EOF
 }
 
@@ -39,12 +41,13 @@ iso_source=""
 iso_sha256=""
 output="work/windows-home-base"
 edition="Windows 11 Home"
+product_key=""
 python_source="https://www.python.org/ftp/python/3.13.14/python-3.13.14-embed-amd64.zip"
 python_sha256="90b4e5b9898b72d744650524bff92377c367f44bd5fbd09e3148656c080ad907"
 python_source_overridden=false
 python_sha256_overridden=false
 disk_size="80G"
-memory_mb=8192
+memory_mb=4096
 cpus=4
 accel=auto
 display=gtk
@@ -58,6 +61,7 @@ while [[ $# -gt 0 ]]; do
         --iso-sha256) iso_sha256=${2:?missing --iso-sha256 value}; shift 2 ;;
         --output) output=${2:?missing --output value}; shift 2 ;;
         --edition) edition=${2:?missing --edition value}; shift 2 ;;
+        --product-key) product_key=${2:?missing --product-key value}; shift 2 ;;
         --python-source) python_source=${2:?missing --python-source value}; python_source_overridden=true; shift 2 ;;
         --python-sha256) python_sha256=${2:?missing --python-sha256 value}; python_sha256_overridden=true; shift 2 ;;
         --disk-size) disk_size=${2:?missing --disk-size value}; shift 2 ;;
@@ -78,8 +82,25 @@ if $python_source_overridden && ! $python_sha256_overridden; then
 fi
 
 [[ -n "$iso_source" ]] || { echo "--iso is required" >&2; usage >&2; exit 64; }
+[[ -z "$product_key" || "$product_key" =~ ^[A-Za-z0-9]{5}(-[A-Za-z0-9]{5}){4}$ ]] || {
+    echo "invalid Windows product key format: expected five groups of five characters" >&2
+    exit 65
+}
 edition_pattern='^[A-Za-z0-9_.()[:space:]-]+$'
 [[ "$edition" =~ $edition_pattern ]] || { echo "invalid Windows edition name" >&2; exit 65; }
+case "$edition" in
+    "Windows 10 Home"|"Windows 11 Home")
+        # Microsoft's public default key selects the Home image during Setup.
+        # It grants no license and cannot activate Windows.
+        windows_setup_key="TX9XD-98N7V-6WMQ6-BX7FG-H8Q99"
+        # Microsoft's consumer installation media places Home at image index 1.
+        windows_image_index=1
+        ;;
+    *)
+        echo "unsupported Windows edition: $edition (supported: Windows 10 Home, Windows 11 Home)" >&2
+        exit 65
+        ;;
+esac
 [[ "$disk_size" =~ ^[1-9][0-9]*[GM]$ ]] || { echo "invalid disk size" >&2; exit 65; }
 [[ "$memory_mb" =~ ^[0-9]+$ && "$memory_mb" -ge 4096 ]] || { echo "memory must be at least 4096 MiB" >&2; exit 65; }
 [[ "$cpus" =~ ^[0-9]+$ && "$cpus" -ge 2 ]] || { echo "at least two CPUs are required" >&2; exit 65; }
@@ -90,6 +111,7 @@ done
 
 qemu_img=${QEMU_IMG:-qemu-img}
 iso_builder=${ISO_BUILDER:-genisoimage}
+seven_zip=${SEVEN_ZIP:-7z}
 host_python=${HOST_PYTHON:-}
 if [[ -z "$host_python" ]]; then
     if [[ -x "$repository/.venv/bin/python" ]]; then
@@ -98,7 +120,7 @@ if [[ -z "$host_python" ]]; then
         host_python=python3
     fi
 fi
-for command_name in "$qemu_img" "$iso_builder" "$host_python" curl openssl sha256sum realpath; do
+for command_name in "$qemu_img" "$iso_builder" "$seven_zip" "$host_python" curl openssl sha256sum realpath cp; do
     command -v "$command_name" >/dev/null || { echo "missing command: $command_name" >&2; exit 69; }
 done
 
@@ -123,7 +145,12 @@ chmod 700 "$output"
 downloads="$output/downloads"
 mkdir -p "$downloads"
 disk="$output/windows-home-base.qcow2"
+boot_iso="$output/windows-installer-noprompt.iso"
 [[ ! -e "$disk" ]] || { echo "refusing to overwrite existing base disk: $disk" >&2; exit 73; }
+[[ ! -e "$boot_iso" && ! -L "$boot_iso" ]] || {
+    echo "refusing to overwrite existing installer media: $boot_iso" >&2
+    exit 73
+}
 
 staging=$(mktemp -d)
 cleanup() {
@@ -163,6 +190,13 @@ obtain() {
 
 windows_iso=$(obtain "$iso_source" "$downloads/windows.iso" "$iso_sha256")
 python_runtime=$(obtain "$python_source" "$downloads/python-3.13.14-embed-amd64.zip" "$python_sha256")
+if ! "$host_python" "$script_dir/validate-install-media.py" "$windows_iso"; then
+    echo "Use a direct ISO download or a local ISO file; web/download pages are not installation media." >&2
+    exit 65
+fi
+echo "Creating derived no-prompt Windows installer media..." >&2
+"$host_python" "$script_dir/make-noprompt-iso.py" "$windows_iso" "$boot_iso" "$seven_zip"
+boot_iso_digest=$(verify_digest "$boot_iso" "")
 windows_iso_digest=$(verify_digest "$windows_iso" "$iso_sha256")
 python_digest=$(verify_digest "$python_runtime" "$python_sha256")
 if [[ -z "$iso_sha256" ]]; then
@@ -205,7 +239,8 @@ password_file="$output/build-user-password"
 printf '%s\n' "$build_password" > "$password_file"
 chmod 600 "$password_file"
 
-sed -e "s|@@WINDOWS_EDITION@@|$edition|g" \
+sed -e "s|@@WINDOWS_IMAGE_INDEX@@|$windows_image_index|g" \
+    -e "s|@@WINDOWS_SETUP_KEY@@|$windows_setup_key|g" \
     -e "s|@@BUILD_PASSWORD@@|$build_password|g" \
     "$script_dir/Autounattend.xml.in" > "$payload/Autounattend.xml"
 cat > "$payload/bootstrap-config.json" <<EOF
@@ -221,6 +256,20 @@ EOF
 payload_iso="$output/provisioning.iso"
 "$iso_builder" -quiet -J -R -V CODEXVM_PAYLOAD -o "$payload_iso" "$payload"
 payload_digest=$(verify_digest "$payload_iso" "")
+
+activation_iso=""
+if [[ -n "$product_key" ]]; then
+    activation_payload="$staging/activation"
+    mkdir -p "$activation_payload"
+    chmod 700 "$activation_payload"
+    printf '%s\n' "$product_key" > "$activation_payload/product-key.txt"
+    chmod 600 "$activation_payload/product-key.txt"
+    touch "$activation_payload/codex-vm-activation.marker"
+    activation_iso="$staging/windows-activation.iso"
+    "$iso_builder" -quiet -J -R -V CODEXVM_ACTIVATION \
+        -o "$activation_iso" "$activation_payload"
+    product_key=""
+fi
 
 cp "$ovmf_vars" "$output/OVMF_VARS.fd"
 chmod 600 "$output/OVMF_VARS.fd"
@@ -262,7 +311,7 @@ write_manifest() {
     local status=$1
     "$host_python" - "$output/manifest.json" "$status" "$edition" "$vm_uuid" \
         "$vm_mac" "$windows_iso" "$windows_iso_digest" "$python_digest" \
-        "$source_digest" "$payload_digest" <<'PY'
+        "$source_digest" "$payload_digest" "$boot_iso_digest" <<'PY'
 import datetime
 import json
 import pathlib
@@ -279,6 +328,7 @@ import sys
     python_sha256,
     worker_source_sha256,
     payload_sha256,
+    boot_iso_sha256,
 ) = sys.argv[1:]
 value = {
     "schema": 1,
@@ -292,6 +342,7 @@ value = {
     "python_runtime_sha256": f"sha256:{python_sha256}",
     "worker_source_sha256": f"sha256:{worker_source_sha256}",
     "provisioning_iso_sha256": f"sha256:{payload_sha256}",
+    "derived_installer_iso_sha256": f"sha256:{boot_iso_sha256}",
 }
 pathlib.Path(destination).write_text(json.dumps(value, indent=2) + "\n", encoding="utf-8")
 PY
@@ -305,10 +356,22 @@ if $prepare_only; then
 fi
 
 echo "Starting Windows Setup. Keep the VM window open."
-echo "After installation, Windows will open a PowerShell window asking for the product key."
-"$script_dir/run-vm.sh" --vm-dir "$output" --disk "$disk" \
-    --cdrom "$windows_iso" --cdrom "$payload_iso" --boot-cdrom --display "$display" \
-    --internet
+if [[ -n "$activation_iso" ]]; then
+    echo "After installation, Windows will use the transient product key."
+else
+    echo "After installation, Windows will open a PowerShell window asking for the product key."
+fi
+run_arguments=(
+    --vm-dir "$output"
+    --disk "$disk"
+    --cdrom "$boot_iso"
+    --cdrom "$payload_iso"
+)
+if [[ -n "$activation_iso" ]]; then
+    run_arguments+=(--cdrom "$activation_iso")
+fi
+run_arguments+=(--boot-cdrom --display "$display" --internet)
+HOST_PYTHON="$host_python" "$script_dir/run-vm.sh" "${run_arguments[@]}"
 
 printf 'Did the guest report successful provisioning before it shut down? [y/N] '
 read -r confirmed
@@ -318,7 +381,7 @@ if [[ "$confirmed" != y && "$confirmed" != Y ]]; then
 fi
 
 chmod 444 "$disk"
-rm -f "$payload_iso"
+rm -f "$payload_iso" "$boot_iso"
 write_manifest complete
 echo "Windows Home base completed: $disk"
 echo "Stable VM identity: $output/vm.conf"

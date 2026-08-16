@@ -25,14 +25,24 @@ try {
         throw "The provisioning payload does not contain the codex_vm package"
     }
 
+    $InstallArguments = @{
+        Python = $Python
+        SourceDirectory = $WorkerSource
+        PortablePython = $true
+        ActivationMode = $Configuration.activation_mode
+        WorkerSession = $Configuration.worker_session
+        WorkerUser = $Configuration.worker_user
+    }
+    foreach ($Drive in Get-CimInstance Win32_LogicalDisk -Filter "DriveType=5") {
+        $Marker = Join-Path $Drive.DeviceID "codex-vm-activation.marker"
+        if (Test-Path -LiteralPath $Marker) {
+            $InstallArguments.ProductKeyFile = Join-Path $Drive.DeviceID "product-key.txt"
+            break
+        }
+    }
+
     Write-Host "Installing and activating the Windows worker..."
-    & (Join-Path $PayloadRoot "install-worker.ps1") `
-        -Python $Python `
-        -SourceDirectory $WorkerSource `
-        -PortablePython `
-        -ActivationMode $Configuration.activation_mode `
-        -WorkerSession $Configuration.worker_session `
-        -WorkerUser $Configuration.worker_user
+    & (Join-Path $PayloadRoot "install-worker.ps1") @InstallArguments
 
     Disable-BuildAutoLogon
     Remove-Item "C:\Windows\Panther\unattend.xml" -Force -ErrorAction SilentlyContinue
