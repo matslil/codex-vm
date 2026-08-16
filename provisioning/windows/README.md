@@ -63,6 +63,10 @@ At first logon, every non-domain connection is explicitly classified as Public,
 which keeps the VM undiscoverable and leaves Windows Firewall enabled while
 still allowing outbound provisioning and activation traffic.
 
+The machine-level Microsoft Edge policy suppresses its first-run experience and
+disables browser sign-in and synchronization for the temporary build account.
+No personal browser data or Microsoft account is needed in the base image.
+
 For an ISO containing Windows 10 instead, explicitly select its image name:
 
 ```sh

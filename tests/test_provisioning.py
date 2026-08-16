@@ -89,6 +89,9 @@ class WindowsProvisioningTests(unittest.TestCase):
         self.assertIn("<NetworkLocation>Other</NetworkLocation>", answer_file)
         self.assertIn("Set-NetConnectionProfile -NetworkCategory Public", answer_file)
         self.assertNotIn("<NetworkLocation>Work</NetworkLocation>", answer_file)
+        self.assertIn("HideFirstRunExperience", answer_file)
+        self.assertIn("BrowserSignin /t REG_DWORD /d 0", answer_file)
+        self.assertIn("SyncDisabled /t REG_DWORD /d 1", answer_file)
 
     def test_base_builder_prepares_artifacts_without_a_vm(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
