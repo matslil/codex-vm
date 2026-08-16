@@ -58,7 +58,8 @@ class WindowsProvisioningTests(unittest.TestCase):
         )
         self.assertIn('Read-Host -AsSecureString "Windows product key"', script)
         self.assertIn("Invoke-CimMethod", script)
-        self.assertNotIn("[string]$ProductKey", script)
+        self.assertIn("[string]$ProductKeyFile", script)
+        self.assertNotIn("[string]$ProductKey,", script)
         self.assertIn("serve --runtime native", script)
         self.assertIn('ValidateSet("System", "Interactive")', script)
         self.assertIn("New-ScheduledTaskTrigger -AtLogOn", script)
@@ -69,12 +70,15 @@ class WindowsProvisioningTests(unittest.TestCase):
         self.assertNotIn("docker", script.lower())
         self.assertNotIn("containerd", script.lower())
 
-    def test_base_builder_keeps_activation_key_guest_only(self) -> None:
+    def test_base_builder_keeps_activation_key_out_of_durable_artifacts(self) -> None:
         builder = (REPOSITORY / "provisioning/windows/build-base.sh").read_text(encoding="utf-8")
         answer_file = (REPOSITORY / "provisioning/windows/Autounattend.xml.in").read_text(
             encoding="utf-8"
         )
-        self.assertNotIn("--product-key", builder)
+        self.assertIn("--product-key", builder)
+        self.assertIn("windows-activation.iso", builder)
+        self.assertIn("codex-vm-activation.marker", builder)
+        self.assertNotIn("@@ACTIVATION_PRODUCT_KEY@@", answer_file)
         self.assertIn("<Key>/IMAGE/INDEX</Key>", answer_file)
         self.assertIn("@@WINDOWS_IMAGE_INDEX@@", answer_file)
         self.assertNotIn("/IMAGE/NAME", answer_file)
@@ -168,6 +172,8 @@ class WindowsProvisioningTests(unittest.TestCase):
                     "2",
                     "--accel",
                     "tcg",
+                    "--product-key",
+                    "AAAAA-BBBBB-CCCCC-DDDDD-EEEEE",
                     "--prepare-only",
                 ],
                 check=False,
@@ -193,6 +199,13 @@ class WindowsProvisioningTests(unittest.TestCase):
                 b"PROMPT",
             )
             self.assertTrue((output / "build-user-password").is_file())
+            self.assertFalse((output / "windows-activation.iso").exists())
+            for artifact in output.rglob("*"):
+                if artifact.is_file():
+                    self.assertNotIn(
+                        b"AAAAA-BBBBB-CCCCC-DDDDD-EEEEE",
+                        artifact.read_bytes(),
+                    )
             configuration = (output / "vm.conf").read_text(encoding="utf-8")
             self.assertIn("VM_ACCEL=tcg", configuration)
             self.assertNotIn("product", configuration.lower())

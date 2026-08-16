@@ -11,6 +11,8 @@ param(
     [ValidateSet("Prompt", "DigitalLicense", "Skip")]
     [string]$ActivationMode = "Prompt",
 
+    [string]$ProductKeyFile,
+
     [ValidateSet("System", "Interactive")]
     [string]$WorkerSession = "System",
 
@@ -35,7 +37,10 @@ function Test-WindowsActivated {
 }
 
 function Request-WindowsActivation {
-    param([string]$Mode)
+    param(
+        [string]$Mode,
+        [string]$KeyFile
+    )
 
     if ($Mode -eq "Skip" -or (Test-WindowsActivated)) {
         return
@@ -43,11 +48,20 @@ function Request-WindowsActivation {
 
     $HasProductKey = $false
     if ($Mode -eq "Prompt") {
-        Write-Host "Enter a Windows Home product key. Leave it blank to use an existing digital license."
-        $SecureProductKey = Read-Host -AsSecureString "Windows product key"
-        $Pointer = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($SecureProductKey)
-        try {
+        $Pointer = [IntPtr]::Zero
+        if ($KeyFile) {
+            if (-not (Test-Path -LiteralPath $KeyFile -PathType Leaf)) {
+                throw "The transient Windows product-key file is unavailable."
+            }
+            $ProductKey = (Get-Content -LiteralPath $KeyFile -Raw).Trim()
+        }
+        else {
+            Write-Host "Enter a Windows Home product key. Leave it blank to use an existing digital license."
+            $SecureProductKey = Read-Host -AsSecureString "Windows product key"
+            $Pointer = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($SecureProductKey)
             $ProductKey = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($Pointer)
+        }
+        try {
             if ($ProductKey) {
                 if ($ProductKey -notmatch '^[A-Za-z0-9]{5}(-[A-Za-z0-9]{5}){4}$') {
                     throw "The Windows product key must contain five groups of five characters."
@@ -60,7 +74,9 @@ function Request-WindowsActivation {
         }
         finally {
             $ProductKey = $null
-            [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($Pointer)
+            if ($Pointer -ne [IntPtr]::Zero) {
+                [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($Pointer)
+            }
         }
     }
 
@@ -75,7 +91,7 @@ function Request-WindowsActivation {
     }
 }
 
-Request-WindowsActivation -Mode $ActivationMode
+Request-WindowsActivation -Mode $ActivationMode -KeyFile $ProductKeyFile
 
 $Root = "C:\ProgramData\codex-vm"
 $Runtime = Join-Path $Root "runtime"

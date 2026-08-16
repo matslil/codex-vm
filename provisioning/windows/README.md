@@ -51,12 +51,12 @@ The supported Microsoft Windows 10 and Windows 11 consumer media both place
 Home at index 1. The generic key is included in the answer file and provisioning
 ISO only to select the edition; it grants no license and does not activate
 Windows. Setup then creates a random temporary `codex-build` administrator and
-logs it in once. A visible PowerShell window asks for the purchased activation
-key; this is the only intended guest interaction. That private key is entered
-inside the VM and is never passed through the Linux shell, QEMU command line,
-answer file, provisioning ISO, or manifest. After activation and worker
-installation, the VM shuts down. Confirm success in the host terminal to seal
-the base disk.
+logs it in once. If no transient host key was supplied, a visible PowerShell
+window asks for it as the only intended guest interaction. A host-supplied key
+appears transiently in the builder command line and temporary activation ISO,
+but never in the QEMU command line, durable provisioning ISO, answer file,
+manifest, or completed VM output. After activation and worker installation, the
+VM shuts down. Confirm success in the host terminal to seal the base disk.
 
 During specialization, Windows suppresses its first-network discovery prompt.
 At first logon, every non-domain connection is explicitly classified as Public,
@@ -76,6 +76,29 @@ provisioning/windows/build-base.sh \
   --edition 'Windows 10 Home' \
   --output work/windows-10-home-base
 ```
+
+To provide the activation key from the host without recording the literal in
+interactive shell history, read it visibly into a temporary shell variable and
+pass that variable as the argument:
+
+```sh
+read -r -p 'Windows product key (visible): ' windows_product_key
+provisioning/windows/build-base.sh \
+  --iso /path/to/Windows10.iso \
+  --edition 'Windows 10 Home' \
+  --product-key "$windows_product_key" \
+  --output work/windows-10-home-base
+unset windows_product_key
+```
+
+The expanded argument is transiently visible in the builder process command
+line. The builder validates it before boot, places it on a separate temporary
+activation ISO under its private staging directory, and passes only that ISO's
+path to QEMU. The ISO and its source file are removed by the cleanup trap when
+the build finishes, fails, or is interrupted. They are never placed in the VM
+output directory, provisioning ISO, answer file, manifest, or repository. A
+literal `--product-key AAAAA-...` also works, but normally persists in shell
+history and is therefore discouraged.
 
 Use `--prepare-only` to download and construct all artifacts without booting a
 VM. `build-base.sh --help` lists memory, CPU, disk, display, accelerator, OVMF,
@@ -122,9 +145,10 @@ can accept a GUI job. Do not use a real person's account or password. A
 headless `SYSTEM` process runs in Session 0 and therefore cannot provide valid
 desktop-IDE evidence.
 
-If Windows is not already activated, the default `Prompt` mode asks for a
-25-character product key using `Read-Host -AsSecureString`. Leaving it empty
-attempts automatic activation from an existing digital license. Alternatives:
+If Windows is not already activated and the host did not supply a transient
+key, the default `Prompt` mode asks for a 25-character product key using
+`Read-Host -AsSecureString`. Leaving it empty attempts automatic activation
+from an existing digital license. Alternatives:
 
 ```powershell
 .\install-worker.ps1 ... -ActivationMode DigitalLicense
@@ -138,9 +162,10 @@ necessary, the interactive Activation troubleshooter.
 
 Before sealing the base, confirm activation in **Settings > System >
 Activation**. Do not put a purchased or otherwise private activation key in an
-unattended XML file, command-line argument, repository file, environment
-manifest, or image-building log. The public generic edition-selection key in
-the generated answer file is not an activation credential.
+unattended XML file, repository file, persistent environment manifest, or
+image-building log. If a host argument is used, keep the literal out of shell
+history as shown above. The public generic edition-selection key in the
+generated answer file is not an activation credential.
 
 ## 2. Build a versioned environment layer
 

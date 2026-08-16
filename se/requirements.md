@@ -246,12 +246,14 @@ Status: approved
 ### LAB-REQ-OPS-003 — Windows Home provisioning
 
 Windows provisioning shall not require Hyper-V or the Windows Containers
-feature. It shall securely prompt for an optional product key, support an
-existing digital license or deferred manual activation, and shall not persist
-the operator-entered activation key in repository configuration, build
-artifacts, or process arguments. The unattended answer file may contain only a
-public generic setup key that selects the requested Home edition and cannot
-activate Windows.
+feature. It shall securely prompt for an optional product key or accept it as a
+transient host-builder argument, support an existing digital license or
+deferred manual activation, and shall not persist the operator-entered
+activation key in repository configuration, durable build artifacts, the
+answer file, manifest, or image-building logs. A host-supplied key may exist
+only in process memory and a private temporary activation medium removed when
+the builder exits. The unattended answer file may contain only a public generic
+setup key that selects the requested Home edition and cannot activate Windows.
 
 The Linux-hosted base builder shall accept a local Windows ISO or download one
 from an operator-supplied HTTPS URL, install the selected Home edition using

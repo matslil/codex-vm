@@ -18,6 +18,7 @@ Options:
   --output DIR              VM state directory (default: work/windows-home-base).
   --iso-sha256 HEX          Expected Windows ISO SHA-256.
   --edition NAME            Install image name (default: Windows 11 Home).
+  --product-key KEY         Transient activation key; never stored in VM output.
   --python-source SOURCE    Python embeddable ZIP path or HTTPS URL.
   --python-sha256 HEX       Expected Python runtime ZIP SHA-256.
   --disk-size SIZE          qcow2 virtual size (default: 80G).
@@ -30,8 +31,9 @@ Options:
   --prepare-only            Build artifacts but do not boot QEMU.
   --help                    Show this help.
 
-The Windows product key is intentionally not a host option. Windows asks for it
-inside the VM using a secure PowerShell prompt after installation.
+Omit --product-key to enter it inside the VM using a secure PowerShell prompt.
+Passing a literal key may record it in shell history; see the Windows README for
+a visible-input pattern that avoids recording the value.
 EOF
 }
 
@@ -39,6 +41,7 @@ iso_source=""
 iso_sha256=""
 output="work/windows-home-base"
 edition="Windows 11 Home"
+product_key=""
 python_source="https://www.python.org/ftp/python/3.13.14/python-3.13.14-embed-amd64.zip"
 python_sha256="90b4e5b9898b72d744650524bff92377c367f44bd5fbd09e3148656c080ad907"
 python_source_overridden=false
@@ -58,6 +61,7 @@ while [[ $# -gt 0 ]]; do
         --iso-sha256) iso_sha256=${2:?missing --iso-sha256 value}; shift 2 ;;
         --output) output=${2:?missing --output value}; shift 2 ;;
         --edition) edition=${2:?missing --edition value}; shift 2 ;;
+        --product-key) product_key=${2:?missing --product-key value}; shift 2 ;;
         --python-source) python_source=${2:?missing --python-source value}; python_source_overridden=true; shift 2 ;;
         --python-sha256) python_sha256=${2:?missing --python-sha256 value}; python_sha256_overridden=true; shift 2 ;;
         --disk-size) disk_size=${2:?missing --disk-size value}; shift 2 ;;
@@ -78,6 +82,10 @@ if $python_source_overridden && ! $python_sha256_overridden; then
 fi
 
 [[ -n "$iso_source" ]] || { echo "--iso is required" >&2; usage >&2; exit 64; }
+[[ -z "$product_key" || "$product_key" =~ ^[A-Za-z0-9]{5}(-[A-Za-z0-9]{5}){4}$ ]] || {
+    echo "invalid Windows product key format: expected five groups of five characters" >&2
+    exit 65
+}
 edition_pattern='^[A-Za-z0-9_.()[:space:]-]+$'
 [[ "$edition" =~ $edition_pattern ]] || { echo "invalid Windows edition name" >&2; exit 65; }
 case "$edition" in
@@ -249,6 +257,20 @@ payload_iso="$output/provisioning.iso"
 "$iso_builder" -quiet -J -R -V CODEXVM_PAYLOAD -o "$payload_iso" "$payload"
 payload_digest=$(verify_digest "$payload_iso" "")
 
+activation_iso=""
+if [[ -n "$product_key" ]]; then
+    activation_payload="$staging/activation"
+    mkdir -p "$activation_payload"
+    chmod 700 "$activation_payload"
+    printf '%s\n' "$product_key" > "$activation_payload/product-key.txt"
+    chmod 600 "$activation_payload/product-key.txt"
+    touch "$activation_payload/codex-vm-activation.marker"
+    activation_iso="$staging/windows-activation.iso"
+    "$iso_builder" -quiet -J -R -V CODEXVM_ACTIVATION \
+        -o "$activation_iso" "$activation_payload"
+    product_key=""
+fi
+
 cp "$ovmf_vars" "$output/OVMF_VARS.fd"
 chmod 600 "$output/OVMF_VARS.fd"
 mkdir -p "$output/tpm"
@@ -334,10 +356,22 @@ if $prepare_only; then
 fi
 
 echo "Starting Windows Setup. Keep the VM window open."
-echo "After installation, Windows will open a PowerShell window asking for the product key."
-HOST_PYTHON="$host_python" "$script_dir/run-vm.sh" --vm-dir "$output" --disk "$disk" \
-    --cdrom "$boot_iso" --cdrom "$payload_iso" --boot-cdrom --display "$display" \
-    --internet
+if [[ -n "$activation_iso" ]]; then
+    echo "After installation, Windows will use the transient product key."
+else
+    echo "After installation, Windows will open a PowerShell window asking for the product key."
+fi
+run_arguments=(
+    --vm-dir "$output"
+    --disk "$disk"
+    --cdrom "$boot_iso"
+    --cdrom "$payload_iso"
+)
+if [[ -n "$activation_iso" ]]; then
+    run_arguments+=(--cdrom "$activation_iso")
+fi
+run_arguments+=(--boot-cdrom --display "$display" --internet)
+HOST_PYTHON="$host_python" "$script_dir/run-vm.sh" "${run_arguments[@]}"
 
 printf 'Did the guest report successful provisioning before it shut down? [y/N] '
 read -r confirmed
