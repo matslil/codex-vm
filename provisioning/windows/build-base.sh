@@ -21,7 +21,7 @@ Options:
   --python-source SOURCE    Python embeddable ZIP path or HTTPS URL.
   --python-sha256 HEX       Expected Python runtime ZIP SHA-256.
   --disk-size SIZE          qcow2 virtual size (default: 80G).
-  --memory-mb MB            Guest memory (default: 8192).
+  --memory-mb MB            Guest memory (default: 4096).
   --cpus COUNT              Guest virtual CPUs (default: 4).
   --accel auto|kvm|tcg      QEMU accelerator (default: auto).
   --display TYPE            QEMU display backend (default: gtk).
@@ -44,7 +44,7 @@ python_sha256="90b4e5b9898b72d744650524bff92377c367f44bd5fbd09e3148656c080ad907"
 python_source_overridden=false
 python_sha256_overridden=false
 disk_size="80G"
-memory_mb=8192
+memory_mb=4096
 cpus=4
 accel=auto
 display=gtk
