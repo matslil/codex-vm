@@ -92,6 +92,7 @@ class WindowsProvisioningTests(unittest.TestCase):
         self.assertIn("HideFirstRunExperience", answer_file)
         self.assertIn("BrowserSignin /t REG_DWORD /d 0", answer_file)
         self.assertIn("SyncDisabled /t REG_DWORD /d 1", answer_file)
+        self.assertIn("AutoImportAtFirstRun /t REG_DWORD /d 4", answer_file)
 
     def test_base_builder_prepares_artifacts_without_a_vm(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

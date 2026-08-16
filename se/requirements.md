@@ -263,9 +263,10 @@ The base builder shall not ask the operator to classify the provisioning
 network. It shall select a non-discoverable Public profile while retaining
 outbound connectivity and Windows Firewall protection.
 
-The base builder shall suppress browser first-run, sign-in, and synchronization
-prompts so the activation-key prompt is the only intended first-logon
-interaction and no personal browser identity enters the base image.
+The base builder shall suppress browser first-run, sign-in, synchronization,
+and browser-data import prompts so the activation-key prompt is the only
+intended first-logon interaction and no personal browser identity or imported
+browser data enters the base image.
 
 Base construction shall not require a timed operator keypress to enter Windows
 Setup. The builder shall preserve the supplied ISO, derive and hash a no-prompt

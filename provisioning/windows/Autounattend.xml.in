@@ -102,6 +102,11 @@
           <Order>4</Order>
           <Path>reg.exe add "HKLM\SOFTWARE\Policies\Microsoft\Edge" /v SyncDisabled /t REG_DWORD /d 1 /f</Path>
         </RunSynchronousCommand>
+        <RunSynchronousCommand wcm:action="add">
+          <Description>Disable Microsoft Edge browser-data import</Description>
+          <Order>5</Order>
+          <Path>reg.exe add "HKLM\SOFTWARE\Policies\Microsoft\Edge" /v AutoImportAtFirstRun /t REG_DWORD /d 4 /f</Path>
+        </RunSynchronousCommand>
       </RunSynchronous>
     </component>
   </settings>
