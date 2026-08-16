@@ -39,9 +39,11 @@ no-prompt Windows installation ISO. The second is the generated
 containing the answer file, bootstrap scripts, worker source, and private Python
 runtime; it is deliberately separate so the original Windows media is not
 modified. QEMU starts paused while a private QMP connection is established.
-The builder then starts the VM and ejects the installer DVD on Windows Setup's
-first reset, leaving the payload DVD attached and making the new system disk the
-next bootable device.
+The builder then starts the VM and, on Windows Setup's first reset, opens the
+installer drive and removes its medium through QMP. Merely opening a QEMU tray
+leaves the ISO associated with the drive, so both operations are required to
+prevent Setup from starting again. The payload DVD remains attached and the new
+system disk becomes the next bootable device.
 
 Windows Setup selects Home image index 1 with Microsoft's public generic Home
 setup key, partitions the disk, and completes without interactive Setup pages.

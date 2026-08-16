@@ -41,7 +41,7 @@ reported rather than silently treated as passing.
 | `LAB-VER-013` | Test and demonstration | Job file areas cannot exceed their declared aggregate disk bound. |
 | `LAB-VER-014` | Test | Native execution rejects a mismatched environment manifest and exposes stable job paths without a container engine. |
 | `LAB-VER-015` | Inspection and demonstration | Windows provisioning prompts securely for a product key, supports digital-license/skip and headless/interactive modes, and starts a native worker without container features. |
-| `LAB-VER-016` | Test and demonstration | The Windows base builder validates inputs, derives and hashes no-prompt UEFI media without changing the source, prepares immutable provenance and stable VM identity, constructs unattended payload/qcow2 artifacts without exposing a product key, and launches QEMU with OVMF Secure Boot and software TPM 2.0. QMP starts the paused VM and ejects the installer on its first guest reset; actual installation remains a native demonstration. |
+| `LAB-VER-016` | Test and demonstration | The Windows base builder validates inputs, derives and hashes no-prompt UEFI media without changing the source, prepares immutable provenance and stable VM identity, constructs unattended payload/qcow2 artifacts without exposing a product key, and launches QEMU with OVMF Secure Boot and software TPM 2.0. QMP starts the paused VM, opens the installer tray, and removes its medium on the first guest reset; actual installation remains a native demonstration. |
 
 ## Evidence rules
 

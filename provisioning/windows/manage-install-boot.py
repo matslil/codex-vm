@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Start a paused VM and eject its installer DVD on the first guest reset."""
+"""Start a paused VM and remove its installer medium on the first guest reset."""
 
 from __future__ import annotations
 
@@ -79,6 +79,12 @@ def manage(path: pathlib.Path) -> None:
         client.execute(
             "blockdev-open-tray",
             {"device": "cdrom1", "force": True},
+        )
+        # Opening a QEMU tray only makes its medium temporarily inaccessible;
+        # removing the medium prevents firmware from loading it again on reboot.
+        client.execute(
+            "blockdev-remove-medium",
+            {"id": "windows-installer"},
         )
     finally:
         client.close()

@@ -254,11 +254,13 @@ class WindowsProvisioningTests(unittest.TestCase):
                                 stream.flush()
                             stream.write(b'{"event":"RESET","data":{"reason":"guest-reset"}}\n')
                             stream.flush()
-                            request = json.loads(stream.readline())
-                            received.append(request)
-                            response = {"return": {}, "id": request["id"]}
-                            stream.write(json.dumps(response).encode() + b"\n")
-                            stream.flush()
+                            for command in ("blockdev-open-tray", "blockdev-remove-medium"):
+                                request = json.loads(stream.readline())
+                                received.append(request)
+                                self.assertEqual(request["execute"], command)
+                                response = {"return": {}, "id": request["id"]}
+                                stream.write(json.dumps(response).encode() + b"\n")
+                                stream.flush()
                 except BaseException as error:
                     server_error.append(error)
 
@@ -280,11 +282,13 @@ class WindowsProvisioningTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertFalse(thread.is_alive())
             self.assertEqual(server_error, [])
-            self.assertEqual(received[-1]["execute"], "blockdev-open-tray")
+            self.assertEqual(received[-2]["execute"], "blockdev-open-tray")
             self.assertEqual(
-                received[-1]["arguments"],
+                received[-2]["arguments"],
                 {"device": "cdrom1", "force": True},
             )
+            self.assertEqual(received[-1]["execute"], "blockdev-remove-medium")
+            self.assertEqual(received[-1]["arguments"], {"id": "windows-installer"})
 
     def test_vm_launcher_uses_stable_identity_and_tpm(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
