@@ -67,6 +67,10 @@ class WindowsProvisioningTests(unittest.TestCase):
         self.assertIn("--token-file $Secrets\\controller.token", script)
         self.assertNotIn("--private-key", script)
         self.assertIn('-RemoteAddress "10.0.2.2"', script)
+        self.assertIn("function Wait-ProvisioningNetwork", script)
+        self.assertIn("IPv4DefaultGateway", script)
+        self.assertIn('Resolve-DnsName -Name "microsoft.com"', script)
+        self.assertIn("Wait-ProvisioningNetwork", script)
         self.assertNotIn("docker", script.lower())
         self.assertNotIn("containerd", script.lower())
 
@@ -413,6 +417,21 @@ class WindowsProvisioningTests(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 64)
         self.assertIn("cannot be combined", result.stderr)
+
+    def test_base_builder_enables_internet_only_for_provisioning(self) -> None:
+        builder = (REPOSITORY / "provisioning/windows/build-base.sh").read_text(
+            encoding="utf-8"
+        )
+        launcher = (REPOSITORY / "provisioning/windows/run-vm.sh").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn(
+            'run_arguments+=(--boot-cdrom --display "$display" --internet)',
+            builder,
+        )
+        self.assertIn('netdev="user,id=net0,restrict=on"', launcher)
+        self.assertIn('netdev="user,id=net0"', launcher)
 
     def test_windows_example_uses_common_job_schema(self) -> None:
         value = json.loads(

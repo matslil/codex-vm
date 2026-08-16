@@ -61,7 +61,11 @@ VM shuts down. Confirm success in the host terminal to seal the base disk.
 During specialization, Windows suppresses its first-network discovery prompt.
 At first logon, every non-domain connection is explicitly classified as Public,
 which keeps the VM undiscoverable and leaves Windows Firewall enabled while
-still allowing outbound provisioning and activation traffic.
+still allowing outbound provisioning and activation traffic. The builder gives
+this installation boot temporary outbound Internet access through QEMU
+user-mode NAT and waits for a default route and working DNS before requesting
+activation. After provisioning shuts the VM down, later worker boots are
+isolated by default; Internet access is not stored as a property of the image.
 
 The machine-level Microsoft Edge policy suppresses its first-run experience,
 disables browser sign-in and synchronization, and prohibits automatic import

@@ -263,7 +263,10 @@ inside the guest session.
 
 The base builder shall not ask the operator to classify the provisioning
 network. It shall select a non-discoverable Public profile while retaining
-outbound connectivity and Windows Firewall protection.
+temporary outbound connectivity and Windows Firewall protection. It shall wait
+for the first-logon network stack to obtain a default route and working DNS
+before requesting activation. Disposable worker boots shall remain isolated
+from external networks unless a separate job policy explicitly grants access.
 
 The base builder shall suppress browser first-run, sign-in, synchronization,
 and browser-data import prompts so the activation-key prompt is the only

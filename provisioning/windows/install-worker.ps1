@@ -36,6 +36,34 @@ function Test-WindowsActivated {
     return $null -ne $License
 }
 
+function Wait-ProvisioningNetwork {
+    param([int]$TimeoutSeconds = 120)
+
+    $Deadline = [DateTime]::UtcNow.AddSeconds($TimeoutSeconds)
+    Write-Host "Waiting for provisioning network connectivity..."
+    do {
+        $HasDefaultRoute = $null -ne (Get-NetIPConfiguration |
+            Where-Object {
+                $_.NetAdapter.Status -eq "Up" -and
+                $null -ne $_.IPv4DefaultGateway
+            } |
+            Select-Object -First 1)
+        if ($HasDefaultRoute) {
+            try {
+                Resolve-DnsName -Name "microsoft.com" -Type A -DnsOnly `
+                    -ErrorAction Stop | Out-Null
+                return
+            }
+            catch {
+                # DHCP can complete before the QEMU user-network DNS proxy is ready.
+            }
+        }
+        Start-Sleep -Seconds 5
+    } while ([DateTime]::UtcNow -lt $Deadline)
+
+    throw "Provisioning network did not obtain a default route and working DNS within $TimeoutSeconds seconds."
+}
+
 function Request-WindowsActivation {
     param(
         [string]$Mode,
@@ -79,6 +107,11 @@ function Request-WindowsActivation {
             }
         }
     }
+
+    # The base-image launcher provides temporary outbound QEMU user networking.
+    # Wait for DHCP and DNS because this first-logon script can run before the
+    # Windows network stack has finished initializing.
+    Wait-ProvisioningNetwork
 
     # This contains no secret. It activates an installed key or asks Microsoft's
     # activation service for a digital entitlement already associated with the VM.
