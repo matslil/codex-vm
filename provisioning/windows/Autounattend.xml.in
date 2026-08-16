@@ -54,15 +54,15 @@
         <OSImage>
           <InstallFrom>
             <MetaData wcm:action="add">
-              <Key>/IMAGE/NAME</Key>
-              <Value>@@WINDOWS_EDITION@@</Value>
+              <Key>/IMAGE/INDEX</Key>
+              <Value>@@WINDOWS_IMAGE_INDEX@@</Value>
             </MetaData>
           </InstallFrom>
           <InstallTo>
             <DiskID>0</DiskID>
             <PartitionID>3</PartitionID>
           </InstallTo>
-          <WillShowUI>OnError</WillShowUI>
+          <WillShowUI>Never</WillShowUI>
         </OSImage>
       </ImageInstall>
       <UserData>

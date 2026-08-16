@@ -256,7 +256,8 @@ activate Windows.
 The Linux-hosted base builder shall accept a local Windows ISO or download one
 from an operator-supplied HTTPS URL, install the selected Home edition using
 QEMU, Secure Boot-capable OVMF, and a persistent software TPM 2.0 identity, and
-shall place the product-key prompt only inside the guest session.
+shall automate all Windows Setup pages before placing the activation-key prompt
+inside the guest session.
 
 Base construction shall not require a timed operator keypress to enter Windows
 Setup. The builder shall preserve the supplied ISO, derive and hash a no-prompt

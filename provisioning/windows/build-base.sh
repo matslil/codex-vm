@@ -85,6 +85,8 @@ case "$edition" in
         # Microsoft's public default key selects the Home image during Setup.
         # It grants no license and cannot activate Windows.
         windows_setup_key="TX9XD-98N7V-6WMQ6-BX7FG-H8Q99"
+        # Microsoft's consumer installation media places Home at image index 1.
+        windows_image_index=1
         ;;
     *)
         echo "unsupported Windows edition: $edition (supported: Windows 10 Home, Windows 11 Home)" >&2
@@ -229,7 +231,7 @@ password_file="$output/build-user-password"
 printf '%s\n' "$build_password" > "$password_file"
 chmod 600 "$password_file"
 
-sed -e "s|@@WINDOWS_EDITION@@|$edition|g" \
+sed -e "s|@@WINDOWS_IMAGE_INDEX@@|$windows_image_index|g" \
     -e "s|@@WINDOWS_SETUP_KEY@@|$windows_setup_key|g" \
     -e "s|@@BUILD_PASSWORD@@|$build_password|g" \
     "$script_dir/Autounattend.xml.in" > "$payload/Autounattend.xml"

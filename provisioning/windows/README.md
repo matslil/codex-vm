@@ -43,15 +43,18 @@ The builder then starts the VM and ejects the installer DVD on Windows Setup's
 first reset, leaving the payload DVD attached and making the new system disk the
 next bootable device.
 
-Windows Setup selects `Windows 11 Home` with Microsoft's public generic Home
-setup key, partitions the disk, creates a random temporary `codex-build`
-administrator, and logs it in once. The generic key is included in the answer
-file and provisioning ISO only to select the edition; it grants no license and
-does not activate Windows. A visible PowerShell window then asks for the
-purchased activation key. That private key is entered inside the VM and is
-never passed through the Linux shell, QEMU command line, answer file,
-provisioning ISO, or manifest. After activation and worker installation, the VM
-shuts down. Confirm success in the host terminal to seal the base disk.
+Windows Setup selects Home image index 1 with Microsoft's public generic Home
+setup key, partitions the disk, and completes without interactive Setup pages.
+The supported Microsoft Windows 10 and Windows 11 consumer media both place
+Home at index 1. The generic key is included in the answer file and provisioning
+ISO only to select the edition; it grants no license and does not activate
+Windows. Setup then creates a random temporary `codex-build` administrator and
+logs it in once. A visible PowerShell window asks for the purchased activation
+key; this is the only intended guest interaction. That private key is entered
+inside the VM and is never passed through the Linux shell, QEMU command line,
+answer file, provisioning ISO, or manifest. After activation and worker
+installation, the VM shuts down. Confirm success in the host terminal to seal
+the base disk.
 
 For an ISO containing Windows 10 instead, explicitly select its image name:
 

@@ -75,8 +75,12 @@ class WindowsProvisioningTests(unittest.TestCase):
             encoding="utf-8"
         )
         self.assertNotIn("--product-key", builder)
+        self.assertIn("<Key>/IMAGE/INDEX</Key>", answer_file)
+        self.assertIn("@@WINDOWS_IMAGE_INDEX@@", answer_file)
+        self.assertNotIn("/IMAGE/NAME", answer_file)
         self.assertIn("@@WINDOWS_SETUP_KEY@@", answer_file)
         self.assertIn("<WillShowUI>Never</WillShowUI>", answer_file)
+        self.assertIn("windows_image_index=1", builder)
         self.assertIn("TX9XD-98N7V-6WMQ6-BX7FG-H8Q99", builder)
         self.assertIn("cannot activate Windows", builder)
         self.assertIn("inside the VM using a secure PowerShell prompt", builder)
